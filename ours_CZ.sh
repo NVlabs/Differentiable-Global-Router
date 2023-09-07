@@ -1,10 +1,10 @@
 # run different parameters for result analysis
 data="${1:-ispd18_test5_metal5}"
-benchmark_path="/home/scratch.rliang_hardware/wli1/cu-gr/benchmark"
-cugr2="/home/scratch.rliang_hardware/wli1/cu-gr-2"
-this_path="/home/wli1/differentiable-global-routing"
+benchmark_path="/scratch/weili3/cu-gr-2/benchmark"
+cugr2="/scratch/weili3/cu-gr-2"
+this_path="/home/weili3/Differentiable-Global-Router"
 echo "Processing Ours w. CZ Round... data: $data"
-python3 main.py --data_path /home/scratch.rliang_hardware/wli1/cu-gr/run/$data.pt --add_CZ True
+python3 main.py --data_path $cugr2/run/$data.pt --add_CZ True
 cd $cugr2/run/
 ./route -lef $benchmark_path/$data/$data.input.lef -def $benchmark_path/$data/$data.input.def -output $benchmark_path/$data/$data.output5 -dgr $this_path/CUGR2_guide/CUgr_$data\_0\_1.txt > $cugr2/GR_log/$data\_Ours_CZ.log
 # cd $cugr2

@@ -62,7 +62,7 @@ def cal_mvc(mvc,net,capacity,edge_list,net_start_edge_idx,target_edge_idx,hor_ma
 
 parser = argparse.ArgumentParser()
 # args.data_path, str, the path for contest benchmark, when value is None, then, use random data
-parser.add_argument('--data_path', type=str, default='/home/scratch.rliang_hardware/wli1/cu-gr/run/ispd18_test1.pt')
+parser.add_argument('--data_path', type=str, default='$cugr2/run/ispd18_test1.pt')
 args = parser.parse_args()
 
 data_name = args.data_path.split("/")[-1].split(".")[0]

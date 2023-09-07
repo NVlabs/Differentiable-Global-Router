@@ -3,10 +3,10 @@
 data_list=("ispd18_test1" "ispd18_test5" "ispd18_test5_metal5" "ispd18_test8")
 # data_list=("ispd18_test8" "ispd18_test8_metal5" "ispd19_test2" "ispd19_test7" "ispd19_test7_metal5")
 # data_list=("ispd19_test2" "ispd19_test7" "ispd19_test7_metal5" "ispd19_test8_metal5" "ispd19_test9_metal5")
-this_path="/home/wli1/differentiable-global-routing"
-benchmark_path="/home/scratch.rliang_hardware/wli1/cu-gr/benchmark"
-cugr2="/home/scratch.rliang_hardware/wli1/cu-gr-2"
-this_path="/home/wli1/differentiable-global-routing"
+this_path="/home/weili3/Differentiable-Global-Router"
+benchmark_path="/scratch/weili3/cu-gr-2/benchmark"
+cugr2="/scratch/weili3/cu-gr-2"
+this_path="/home/weili3/Differentiable-Global-Router"
 for data in "${data_list[@]}"
 do
     # run the whole framework

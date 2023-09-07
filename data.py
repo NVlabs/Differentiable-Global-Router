@@ -190,6 +190,7 @@ def process_pool(candidate_pool,xmax, ymax,device = 'cpu'):
     start = timeit.default_timer()
     # create hor_path (sparse_tensor, (n, xmax, ymax - 1), n is the number of candidates)
     via_map_list = []
+    via_count_list = []
     wl_list = []
     hor_list = []
     ver_list = []
@@ -211,10 +212,11 @@ def process_pool(candidate_pool,xmax, ymax,device = 'cpu'):
                     wl_list.append(candidate[0])
                     # extract via_map
                     via_map = candidate[1] # np array (2, num_via)
+                    via_count_list.append(via_map.shape[1]) # (1)
                     via_map = via_map[0] * ymax + via_map[1] # np array (num_via)
                     via_map = torch.sparse_coo_tensor(via_map.reshape(1,-1), torch.ones(via_map.shape[0], dtype=torch.float32,device=device), (xmax * ymax,),device=device) # sparse tensor (xmax * ymax)
                     via_map_list.append(via_map)
-
+                    
                     #extract hor_path
                     edge_index, is_hor = candidate[2] # edge_index is np array (2, num_edge), is_hor is np array (num_seg)
                     hor_edge_index = edge_index[:,is_hor] # np array (2, num_hor_edge)
@@ -240,7 +242,7 @@ def process_pool(candidate_pool,xmax, ymax,device = 'cpu'):
 
     wire_length_count = torch.tensor(wl_list).to(device)
     via_map = torch.stack(via_map_list,dim = 1).to(device).float()
-    via_count = via_map.sum(dim = 0).to_dense() # (n)
+    via_count = torch.tensor(via_count_list).to(device)
     hor_path = torch.stack(hor_list,dim = 1).to(device)
     ver_path = torch.stack(ver_list,dim = 1).to(device)
     print("Sparse tensor generation time: ", timeit.default_timer() - start)
@@ -249,23 +251,23 @@ def process_pool(candidate_pool,xmax, ymax,device = 'cpu'):
 
 
 
-import matplotlib.pyplot as plt
-import seaborn as sns
-import os
-# plot p distribution
-"""
-Require:
-    p: numpy(float), the probability distribution for each candidate
-"""
-def plot_p_dist(p,path = './figs/p_distribution.png'):
-    # plot distribution of p
-    # path folder does not exist, create it
-    if not os.path.exists(os.path.dirname(path)):
-        os.makedirs(os.path.dirname(path))
-    sns.set()
-    plt.figure()
-    plt.hist(p.detach().cpu().numpy(), bins = 10)
-    plt.savefig(path)
-    plt.close()
+# import matplotlib.pyplot as plt
+# import seaborn as sns
+# import os
+# # plot p distribution
+# """
+# Require:
+#     p: numpy(float), the probability distribution for each candidate
+# """
+# def plot_p_dist(p,path = './figs/p_distribution.png'):
+#     # plot distribution of p
+#     # path folder does not exist, create it
+#     if not os.path.exists(os.path.dirname(path)):
+#         os.makedirs(os.path.dirname(path))
+#     sns.set()
+#     plt.figure()
+#     plt.hist(p.detach().cpu().numpy(), bins = 10)
+#     plt.savefig(path)
+#     plt.close()
 
 

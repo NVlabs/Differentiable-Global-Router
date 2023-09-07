@@ -15,11 +15,11 @@
 
 # run different parameters for result analysis
 data="${1:-ispd18_test5_metal5}"
-benchmark_path="/home/scratch.rliang_hardware/wli1/cu-gr/benchmark"
-cugr2="/home/scratch.rliang_hardware/wli1/cu-gr-2"
-this_path="/home/wli1/differentiable-global-routing"
+benchmark_path="/scratch/weili3/cu-gr-2/benchmark"
+cugr2="/scratch/weili3/cu-gr-2"
+this_path="/home/weili3/Differentiable-Global-Router"
 echo "Processing New Tree... data: $data"
-python3 main.py --data_path /home/scratch.rliang_hardware/wli1/cu-gr/run/$data.pt --read_new_tree True
+python3 main.py --data_path $cugr2/run/$data.pt --read_new_tree True
 cd $cugr2/run/
 ./route -lef $benchmark_path/$data/$data.input.lef -def $benchmark_path/$data/$data.input.def -output $benchmark_path/$data/$data.output4 -dgr $this_path/CUGR2_guide/CUgr_$data\_1\_0.txt -tree $this_path/CUGR2_guide/CUgr_$data\_tree.txt > $cugr2/GR_log/$data\_NewT.log
 cd $cugr2

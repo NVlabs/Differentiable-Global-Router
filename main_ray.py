@@ -41,7 +41,7 @@ parser.add_argument('--max_pin_num', type=int, default=3)
 parser.add_argument('--net_size', type=int, default=10)
 
 # data_path, str, the path for contest benchmark, when value is None, then, use random data
-parser.add_argument('--data_path', type=str, default='/home/scratch.rliang_hardware/wli1/cu-gr/run/ispd18_test1.pt')
+parser.add_argument('--data_path', type=str, default='$cugr2/run/ispd18_test1.pt')
 # data_name, str, default is ispd18_test1
 # parser.add_argument('--data_name', type=str, default='ispd18_test1')
 
@@ -143,6 +143,7 @@ def train(config):
         cost_lists.append(cost_list)
         session.report({"best_cost":discrete_cost.cpu().item()})
 trainable_with_resources = tune.with_resources(train,
+# resources={"gpu": 0})
 resources=lambda spec: {"gpu": 1} if torch.cuda.is_available() else {"gpu": 0})
 
 tuner = tune.Tuner(

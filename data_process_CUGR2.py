@@ -23,24 +23,92 @@ import data
 import os
 import torch
 import pickle
-# ispd18_test{%d} from 1 to 10
-data_names = ['ispd18_test%d_metal5' % i for i in [5,8]]
-data_names += ['ispd19_test%d_metal5' % i for i in [7]]
-cugr_dir = '/home/scratch.rliang_hardware/wli1/cu-gr'
-cugr2_dir = '/home/scratch.rliang_hardware/wli1/cu-gr-2'
+
+cugr2_dir = '/scratch/weili3/cu-gr-2'
+benchmark_path = os.path.join(cugr2_dir, "benchmark")
+data_names = [d for d in os.listdir(benchmark_path) if os.path.isdir(os.path.join(benchmark_path, d))]
+print("data_names: ", data_names)
 results = {} # results[i]['net'][j] is the j_th Net object in i benchmark; results[i]['region'] = routing region
 for data_name in data_names:
-    # cd {cugr_dir}/run/ 
+    # cd {cugr2_dir}/run/ 
+    print("data_name: ", data_name)
     results[data_name] = {}
     os.chdir('{cugr2_dir}/run/'.format(cugr2_dir = cugr2_dir))
-    # rm '{cugr_dir}/benchmark/{data_name}/{data_name}.output2'.format(cugr_dir = cugr_dir, data_name = data_name)
-    os.system('rm {cugr_dir}/benchmark/{data_name}/{data_name}.output2'.format(cugr_dir = cugr_dir, data_name = data_name))
-    os.system('./route -lef {cugr_dir}/benchmark/{data_name}/{data_name}.input.lef -def {cugr_dir}/benchmark/{data_name}/{data_name}.input.def -output {cugr_dir}/benchmark/{data_name}/{data_name}.output2 -threads 1'.format(cugr_dir = cugr_dir, data_name = data_name))
+    os.system('rm {cugr2_dir}/benchmark/{data_name}/{data_name}.output2'.format(cugr2_dir = cugr2_dir, data_name = data_name))
+    os.system('./route -lef {cugr2_dir}/benchmark/{data_name}/{data_name}.input.lef -def {cugr2_dir}/benchmark/{data_name}/{data_name}.input.def -output {cugr2_dir}/benchmark/{data_name}/{data_name}.output2 -threads 1'.format(cugr2_dir = cugr2_dir, data_name = data_name))
     # wait until the output file is generated
-    while not os.path.exists('{cugr_dir}/benchmark/{data_name}/{data_name}.output2'.format(cugr_dir = cugr_dir, data_name = data_name)):
+    while not os.path.exists('{cugr2_dir}/benchmark/{data_name}/{data_name}.output2'.format(cugr2_dir = cugr2_dir, data_name = data_name)):
         pass
     print('Processing data: ', data_name)
+    # read 'layout.txt'
 
+    with open('./layout.txt', 'r') as f:
+        # Read the first line
+        sizes = f.readline().strip().split()
+        results[data_name]['xmax'] = int(sizes[0])
+        results[data_name]['ymax'] = int(sizes[1])
+        results[data_name]['m2_pitch'] = float(sizes[2])
+        
+        # Read the subsequent lines for layer details
+        results[data_name]['layers'] = []
+        for line in f:
+            layer_details = line.strip().split()
+            layer_info = {
+                'layer_index': int(layer_details[0]),
+                'pitch': float(layer_details[1]),
+                'unit_length_short_cost': float(layer_details[2]),
+                'layerMinLength': float(layer_details[3])
+            }
+            results[data_name]['layers'].append(layer_info)
+
+
+    # read capacity3D
+    first_layer = True
+    hor_cap_list = []
+    ver_cap_list = []
+    xmax = results[data_name]['xmax']
+    ymax = results[data_name]['ymax']
+    # we load the fixed2D.txt and capacity2D.txt, which stores the blockage and capacity information for each gcell
+    with open('capacity3D.txt','r') as f2:
+        for line2 in f2.readlines():
+            # if the line only contains one integer, it is the direction indicator
+            if len(line2.split()) == 1:
+                # if not first layer, then, we need to save the previous layer
+                if not first_layer:
+                    # save the previous layer
+                    if direction == 1:
+                        hor_cap_list.append(hor_cap)
+                    else:
+                        ver_cap_list.append(ver_cap)
+                direction = int(line2.split()[0])
+                # index is the row/col index of the gcell
+                index = 0
+                if first_layer:
+                    first_layer = False
+                    is_hor = (direction == 1)
+                hor_cap = torch.zeros((xmax, ymax-1))
+                ver_cap = torch.zeros((xmax-1, ymax))
+                continue
+            # else, it encodes the cap/fix information, each row is a row of gcells
+            line2 = torch.tensor([float(x) for x in line2.split()])
+            # direction = 0: horizontal, 1: vertical
+            if direction == 1:
+                hor_cap[index] = line2
+            else:
+                ver_cap[index] = line2
+            index += 1
+    if direction == 1:
+        hor_cap_list.append(hor_cap)
+    else:
+        ver_cap_list.append(ver_cap)
+    RoutingGrid3d = data.routing_region_3D(xmax, ymax, (hor_cap_list,ver_cap_list), is_hor)
+    results[data_name]['region3D'] = RoutingGrid3d
+
+    # then, create 2D region cap values
+    hor_cap = torch.stack(hor_cap_list).sum(dim = 0)
+    ver_cap = torch.stack(ver_cap_list).sum(dim = 0)
+    RoutingGrid = data.routing_region(xmax,ymax,cap_mat=(hor_cap, ver_cap))
+    results[data_name]['region'] = RoutingGrid
     # load the output file tree.txt, which contains all nets information
     # each net starts with a line: 'netname num_pins need_route'
     # then num_pins lines, each line is a pin_index, is_steiner, x, y, child index

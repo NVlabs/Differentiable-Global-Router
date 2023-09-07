@@ -215,7 +215,7 @@ def layer_assignment_objective(full_end_index,hor_out, ver_out,hor_mask, edge_pa
 
 
 # define objective function
-def objective_function(RoutingRegion, hor_path, ver_path,wire_length_count, via_info, p, args,activation = None):
+def objective_function(RoutingRegion, hor_path, ver_path,wire_length_count, via_info, p, args,activation = None,iteration=None, hor_batch_size=None,ver_batch_size=None, hor_shuffled_indices=None,ver_shuffled_indices = None):
     """
     the objective function is calculated by:
     1. overflow cost, i.e., sum relu (sum (p[i] * (hor_path[i])) - RoutingRegion.cap_mat[0])) + sum relu sum (p[i] * (candidate_pool[p_index2pattern_index[i]][0][1]) - RoutingRegion.cap_mat[1])
@@ -238,19 +238,46 @@ def objective_function(RoutingRegion, hor_path, ver_path,wire_length_count, via_
     # calculate overflow cost by tensor operation directly
     hor_cap = RoutingRegion.cap_mat[0].flatten()
     ver_cap = RoutingRegion.cap_mat[1].flatten()
+
     via_map,via_count = via_info
     hor_demand = torch.matmul(hor_path,p) # the demand for the horizontal edge, if add_via_in_overflow is False, we only count the wire congestion
     ver_demand = torch.matmul(ver_path,p) # the demand for the vertical edge
     if add_via_in_overflow:
         xmax = RoutingRegion.xmax
         ymax = RoutingRegion.ymax
-        this_via_map = torch.matmul(via_map,p).to_dense().view(xmax,ymax) # (xmax, ymax)
+        this_via_map = torch.matmul(via_map,p).view(xmax,ymax) # (xmax, ymax)
         # hor_via = torch.sqrt((via_map[:,:-1] + via_map[:,1:])/2).flatten()
         # ver_via = torch.sqrt((via_map[:-1,:] + via_map[1:,:])/2).flatten()
         hor_via = ((this_via_map[:,:-1] + this_via_map[:,1:]) * args.via_layer / 2).flatten() # /2 because layers are half divided by hor/ver
         ver_via = ((this_via_map[:-1,:] + this_via_map[1:,:]) * args.via_layer / 2).flatten()
         hor_demand = hor_via + hor_demand
         ver_demand = ver_via + ver_demand
+
+    hor_total_elements = hor_cap.numel()
+    ver_total_elements = ver_cap.numel()
+    if iteration is not None and hor_batch_size is not None and hor_shuffled_indices is not None:
+        hor_start_idx = iteration * hor_batch_size
+        hor_end_idx = hor_start_idx + hor_batch_size
+        hor_end_idx = min(hor_end_idx, hor_total_elements)
+        hor_selected_indices = hor_shuffled_indices[hor_start_idx:hor_end_idx]
+        hor_mask = torch.zeros(hor_total_elements, dtype=torch.bool)
+        hor_mask[hor_selected_indices] = 1
+        # vertical
+        ver_start_idx = iteration * ver_batch_size
+        ver_end_idx = ver_start_idx + ver_batch_size
+        ver_end_idx = min(ver_end_idx, ver_total_elements)
+        ver_selected_indices = ver_shuffled_indices[ver_start_idx:ver_end_idx]
+        ver_mask = torch.zeros(ver_total_elements, dtype=torch.bool)
+        ver_mask[ver_selected_indices] = 1
+    else:
+        hor_mask = torch.ones(hor_total_elements, dtype=torch.bool)
+        ver_mask = torch.ones(ver_total_elements, dtype=torch.bool)
+    
+    hor_demand = hor_demand[hor_mask]
+    ver_demand = ver_demand[ver_mask]
+    hor_cap = hor_cap[hor_mask]
+    ver_cap = ver_cap[ver_mask]
+
     if pow:
         overflow_cost = torch.sum(1 / (1 + torch.exp(hor_cap-hor_demand))) + torch.sum(1 / (1 + torch.exp(ver_cap-ver_demand)))
     else:

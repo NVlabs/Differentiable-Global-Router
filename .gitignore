@@ -1,0 +1,6 @@
+*.pyc
+CUGR2_guide
+*.png
+*.csv
+tmp
+ray_results

@@ -15,8 +15,8 @@ do
         do
             # run the whole framework
             echo "data: $data"
-            # python3 main.py --data_path /home/scratch.rliang_hardware/wli1/cu-gr/run/$data.pt --pattern_level 3 --capacity 0.5 --via_coeff $s1via --wl_coeff $s1wl
-            python3 layer_assignment.py  --data_path /home/scratch.rliang_hardware/wli1/cu-gr/run/$data.pt  --capacity 1
+            # python3 main.py --data_path $cugr2/run/$data.pt --pattern_level 3 --capacity 0.5 --via_coeff $s1via --wl_coeff $s1wl
+            python3 layer_assignment.py  --data_path $cugr2/run/$data.pt  --capacity 1
         done
     done
 done
@@ -28,7 +28,7 @@ done
 #     do
 #         # run the whole framework
 #         echo "data: $data"
-#         python3 main.py --data_path /home/scratch.rliang_hardware/wli1/cu-gr/run/$data.pt --pattern_level 3 --capacity 0.5
-#         python3 layer_assignment.py  --data_path /home/scratch.rliang_hardware/wli1/cu-gr/run/$data.pt  --capacity 1  --via_coeff $s2via
+#         python3 main.py --data_path $cugr2/run/$data.pt --pattern_level 3 --capacity 0.5
+#         python3 layer_assignment.py  --data_path $cugr2/run/$data.pt  --capacity 1  --via_coeff $s2via
 #     done
 # done

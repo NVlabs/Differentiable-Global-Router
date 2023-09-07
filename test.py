@@ -1,56 +1,95 @@
-# SPDX-FileCopyrightText: Copyright (c) 2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: Apache-2.0
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-
+import os
+import re
+import ray
+import subprocess
+from ray import tune
+import os
+os.environ["MKL_SERVICE_FORCE_INTEL"] = "1"
 import torch
-import torch
+import numpy
+import sys
+# set data as the input argment
+data = sys.argv[1]
+# set available GPU id as sys.argv[2]
+os.environ["CUDA_VISIBLE_DEVICES"] = sys.argv[2]
+NUM_MODELS = 5
 
-is_hor_list = [True, True, False, False, True, True, False, False,False, True, True]
 
-# Convert the list to a PyTorch tensor
-is_hor_tensor = torch.tensor(is_hor_list)
+def train_model(config):
+    # Variables
 
-# Calculate the count tensor
-diff = torch.diff(is_hor_tensor, prepend=torch.tensor([0], dtype=torch.bool))
-C_tensor = torch.cumsum(diff == 1, dim=0)[diff == 0]
+    benchmark_path = "/scratch/weili3/cu-gr-2/benchmark"
+    cugr2 = "/scratch/weili3/cu-gr-2"
+    this_path = "/home/weili3/Differentiable-Global-Router"
+    os.chdir(this_path)
+    # Execute python3 command
+    subprocess.run(["python", "main.py", "--data_path", os.path.join(cugr2, "run", f"{data}.pt"), "--lr", str(config['learning_rate']), "--t", str(config['temperature']), "--via_coeff", str(config['via_coeff']), 
+                   "--pin_ratio", str(config['pin_ratio']), "--select_threshold", str(config['select_threshold'])], stdout=open(os.path.join(cugr2, "GR_log", f"{data}_Ours.log"), "w"))
 
-print(C_tensor)
+    # Change directory and execute route command
+    os.chdir(os.path.join(cugr2, "run"))
+    subprocess.run([
+        "./route",
+        "-lef", os.path.join(benchmark_path, data, f"{data}.input.lef"),
+        "-def", os.path.join(benchmark_path, data, f"{data}.input.def"),
+        "-output", os.path.join(benchmark_path, data, f"{data}.output3"),
+        "-dgr", os.path.join(this_path, "CUGR2_guide", f"CUgr_{data}_0_0.txt")
+    ], stdout=open(os.path.join(cugr2, "GR_log", f"{data}_Ours.log"), "w"))
 
-exit()
-value = torch.nn.Parameter(torch.ones(50, 3).cuda(), requires_grad=True)
-indices = torch.ones(2,50).cuda()
-s = torch.sparse_coo_tensor(indices, value, (2, 4,3)).cuda()
-s = s.coalesce()
-# backprop
-s.sum().backward()
+    # # Change directory and execute drcu command
+    # os.chdir(cugr2)
+    # subprocess.run([
+    #     "./drcu",
+    #     "-lef", os.path.join(benchmark_path, data, f"{data}.input.lef"),
+    #     "-def", os.path.join(benchmark_path, data, f"{data}.input.def"),
+    #     "-thread", "8",
+    #     "-guide", os.path.join(benchmark_path, data, f"{data}.output3"),
+    #     "--output", os.path.join(cugr2, "DR_result", f"Ours_{data}.txt"),
+    #     "--tat", "2000000000"
+    # ], stdout=open(os.path.join(cugr2, "DR_log", f"{data}_Ours.log"), "w"))
 
-# y = torch.rand(100, 5000).cuda()
-# initialize a sparse tensor with rand values
-y = torch.sparse_coo_tensor([[1,2],[3,4]], [2,4], (100, 5000)).cuda().float()
-y2 = torch.sparse_coo_tensor([[1,2],[3,4]], [2,4], (100, 5000)).cuda().float()
-a = torch.cat([y,y2], dim=1)
-import timeit
-start = timeit.default_timer()
-bmm = torch.bmm(y.unsqueeze(2),b.unsqueeze(1)) # Method of @fmassa
-# backprop
-bmm.sum().backward()
+    # Change back to the original directory
+    os.chdir(this_path)
 
-print("bmm time: ", timeit.default_timer() - start)
-start = timeit.default_timer()
-einsum = torch.einsum('bi,bj->bij', (y,x))
-einsum.sum().backward()
-print("einsum time: ", timeit.default_timer() - start)
-print("bmm shape: ", bmm.shape)
+    # Parse the output log file
+    with open(f"{cugr2}/GR_log/{data}_Ours.log", "r") as f:
+        content = f.read()
+        wire_length = int(re.search(r"wire length \(metric\):\s+(\d+)", content).group(1))
+        via_count = int(re.search(r"total via count:\s+(\d+)", content).group(1))
+        overflow = int(re.search(r"total wire overflow:\s+(\d+)", content).group(1))
+        min_resource = float(re.search(r"min resource:\s+(-?\d+(\.\d+)?)", content).group(1))
 
+    # Compute the score
+    # score = wire_length * 0.5 + via_count * 2 + overflow * 3000 - min_resource * 10000
+    score = via_count * 2 + overflow * 3000 - min_resource * 10000
+
+    # Report the metrics
+    return {"score":score, "wire_length":wire_length, "via_count":via_count, "overflow":overflow, "min_resource":min_resource}
+
+
+trainable_with_resources = tune.with_resources(train_model,
+resources=lambda spec: {"gpu": 1} if torch.cuda.is_available() else {"gpu": 0})
+
+config = {
+    "learning_rate": tune.loguniform(1e-4, 1),
+    "temperature": tune.choice([0.8, 0.85, 0.9, 0.95, 1]),
+    "via_coeff": tune.loguniform(1e-4, 1e2),
+    "pin_ratio": tune.uniform(0.5,1.5),
+    "select_threshold": tune.choice([0.8, 0.85, 0.9, 0.95, 1])
+    }
+
+
+tuner = tune.Tuner(
+    trainable_with_resources,    
+    tune_config=tune.TuneConfig(
+        num_samples=int(sys.argv[3]),
+        max_concurrent_trials=1
+    ),
+    param_space=config
+)
+
+
+analysis = tuner.fit()
+results_df = analysis.get_dataframe()
+# save df to a csv (append if the file exists)
+results_df.to_csv(f"./ray_results/{data}.csv", mode='a', header=False)

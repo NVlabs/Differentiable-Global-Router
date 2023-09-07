@@ -41,7 +41,7 @@ tracemalloc.start()
 
 parser = argparse.ArgumentParser()
 # args.data_path, str, the path for contest benchmark, when value is None, then, use random data
-parser.add_argument('--data_path', type=str, default='/home/scratch.rliang_hardware/wli1/cu-gr/run/ispd18_test2.pt')
+parser.add_argument('--data_path', type=str, default='$cugr2/run/ispd18_test2.pt')
 
 parser.add_argument('-y_step_size', nargs="+", type=int,default=[5700,6840])
 parser.add_argument('-y_step_count', nargs="+", type=int,default=[66,1])

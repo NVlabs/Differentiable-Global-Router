@@ -18,7 +18,7 @@
 A temporary file for data processing
 """
 import torch
-results = torch.load("/home/scratch.rliang_hardware/wli1/cu-gr/run/iccad19_benchmark.pt")
+results = torch.load("$cugr2/run/iccad19_benchmark.pt")
 
 # mkdir data if not exist
 import os

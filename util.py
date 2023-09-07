@@ -864,14 +864,14 @@ based on dataname
 """
 def get_ispd_size(data_name):
     # READ def file for the shape info,
-    # def file is stored in `/home/scratch.rliang_hardware/wli1/cu-gr/benchmark/$data_name/$data_name.input.def`
+    # def file is stored in `/scratch/weili3/cu-gr-2/benchmark/$data_name/$data_name.input.def`
     # the shape info is stored in the lines starting with `GCELLGRID`
     y_step_size = [0,0]
     y_step_count = [0,0]
     x_step_size = [0,0]
     x_step_count = [0,0]
 
-    with open("/home/scratch.rliang_hardware/wli1/cu-gr/benchmark/{}/{}.input.def".format(data_name,data_name),'r') as f:
+    with open("/scratch/weili3/cu-gr-2/benchmark/{}/{}.input.def".format(data_name,data_name),'r') as f:
         lines = f.readlines()
         gcell_line = 0
         for line in lines:

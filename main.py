@@ -21,13 +21,13 @@ import torch
 import data
 from data import random_data, process_pool,routing_region
 import util
-from ilp import LP_data_prep, solve_by_lp
+# from ilp import LP_data_prep, solve_by_lp
 import model
 import timeit
 # arguments
 import argparse
 from torch_scatter import scatter_max
-from ray import tune
+# from ray import tune
 import tracemalloc
 import os
 import numpy as np
@@ -64,7 +64,7 @@ parser.add_argument('--max_pin_num', type=int, default=3)
 parser.add_argument('--net_size', type=int, default=10)
 
 # data_path, str, the path for contest benchmark, when value is None, then, use random data
-parser.add_argument('--data_path', type=str, default='/home/scratch.rliang_hardware/wli1/cu-gr/run/ispd18_test1.pt')
+parser.add_argument('--data_path', type=str, default='/scratch/weili3/cu-gr-2/run/ispd18_test1.pt')
 
 # DL hyperparameters
 parser.add_argument('--lr', type=float, default=0.3)
@@ -121,9 +121,8 @@ if args.data_path is None:
     RoutingRegion = routing_region(args.xmax,args.ymax,cap_mat = args.capacity,device = args.device)
 else:
     results = torch.load(args.data_path)
-    # cugr2_path is replacing cu-gr in args.data_path by cu-gr-2
-    cugr2_path = args.data_path.replace('cu-gr','cu-gr-2')
-    RouteNets = torch.load(cugr2_path)['net']
+    # args.data_path is replacing cu-gr in args.data_path by cu-gr-2
+    RouteNets = results['net']
     # RouteNets = results['net'] 
     RoutingRegion = results['region']
     args.xmax = RoutingRegion.xmax
@@ -143,8 +142,8 @@ else:
     RoutingRegion.cap_mat = util.upd_cap_by_pin(RoutingRegion.cap_mat,pin_density)
     RoutingRegion.to(args.device)
     if args.read_new_tree:
-        # cugr2_path is removing final /....pt
-        cugr2_dir_path = cugr2_path[:-len(cugr2_path.split('/')[-1])]
+        # args.data_path is removing final /....pt
+        cugr2_dir_path = args.data_path[:-len(args.data_path.split('/')[-1])]
         RouteNets = util.read_new_tree(RouteNets,cugr2_dir_path)
     
 
@@ -155,22 +154,23 @@ print("Data generation time: ", timeit.default_timer() - start)
 # For each net, generate a candidate pool, that is
 start = timeit.default_timer()
 # if ./tmp/{data_name}_candidate_pool.pt exists, then load candidate_pool, otherwise, generate candidate_pool
-if False:
-# if os.path.exists('./tmp/' + args.data_name + '_candidate_pool.pt'):
+# if False:
+if os.path.exists('./tmp/' + args.data_name + '_candidate_pool.pt'):
     candidate_pool = torch.load('./tmp/' + args.data_name + '_candidate_pool.pt')
+    print("candidate pool loaded")
 else:
     candidate_pool = util.get_initial_candidate_pool(RouteNets, args.xmax, args.ymax, device = args.device, pattern_level = args.pattern_level, max_z = args.max_z, z_step = args.z_step,c_step = args.c_step, max_c= args.max_c, max_c_out_ratio = args.max_c_out_ratio)
-    # torch.save(candidate_pool, './tmp/' + args.data_name + '_candidate_pool.pt')
+    torch.save(candidate_pool, './tmp/' + args.data_name + '_candidate_pool.pt')
 pool_generation_time = timeit.default_timer() - start
 print("Initial candidate pool generation time: ", timeit.default_timer() - start)
 
 # if ./tmp/{data_name}_p_index.pt exists, then load p_index, otherwise, generate p_index
-if False:
-# if os.path.exists('./tmp/' + args.data_name + '_p_index.pt'):
+# if False:
+if os.path.exists('./tmp/' + args.data_name + '_p_index.pt'):
     p_index, p_index_full, p_index2pattern_index,hor_path, ver_path, wire_length_count, via_info, tree_p_index, tree_index_per_candidate, tree_p_index2pattern_index, tree_p_index_full = torch.load('./tmp/' + args.data_name + '_p_index.pt')
 else:
     p_index, p_index_full, p_index2pattern_index,hor_path, ver_path, wire_length_count, via_info, tree_p_index, tree_index_per_candidate, tree_p_index2pattern_index, tree_p_index_full= process_pool(candidate_pool,args.xmax, args.ymax,device = args.device)
-    # torch.save((p_index, p_index_full, p_index2pattern_index,hor_path, ver_path, wire_length_count, via_info, tree_p_index, tree_index_per_candidate, tree_p_index2pattern_index, tree_p_index_full), './tmp/' + args.data_name + '_p_index.pt')
+    torch.save((p_index, p_index_full, p_index2pattern_index,hor_path, ver_path, wire_length_count, via_info, tree_p_index, tree_index_per_candidate, tree_p_index2pattern_index, tree_p_index_full), './tmp/' + args.data_name + '_p_index.pt')
 
 if args.read_new_tree is False: 
     tree_p_index = None
@@ -200,6 +200,7 @@ current_best_continue_cost = 1e10
 t_ratio = 1 # temperature ratio
 temperature = 1
 tree_temperature = 1
+print("Start training...")
 # prev_argmax = torch.empty(1).to(args.device)
 for i in range(args.iter):
     # forward, update temperature for the softmax function
@@ -282,18 +283,18 @@ util.write_CUGR_input(RouteNets,candidate_p,p_index_full,candidate_pool,p_index2
 
 
 # plot cost_list and save in ./figs/cost_{data_name}.png
-import matplotlib.pyplot as plt
-import seaborn as sns
-sns.set()
-plt.figure()
-plt.plot(cost_list)
-plt.plot(overflow_cost_list)
-plt.plot(via_cost_list)
-plt.legend(["total_cost","overflow_cost","via_cost"])
-plt.xlabel("iteration")
-plt.ylabel("cost")
-plt.savefig("./figs/s1_cost_" + args.data_name + ".png")
-plt.close()
+# import matplotlib.pyplot as plt
+# import seaborn as sns
+# sns.set()
+# plt.figure()
+# plt.plot(cost_list)
+# plt.plot(overflow_cost_list)
+# plt.plot(via_cost_list)
+# plt.legend(["total_cost","overflow_cost","via_cost"])
+# plt.xlabel("iteration")
+# plt.ylabel("cost")
+# plt.savefig("./figs/s1_cost_" + args.data_name + ".png")
+# plt.close()
 
 
 # visualization
@@ -301,16 +302,16 @@ plt.close()
 # util.save_path_result(RouteNets,argmax,candidate_pool,p_index2pattern_index,args.data_name)
 
 # # ILP
-if len(p) > 9999999900000:
-    hor_cap, ver_cap, hor_path, ver_path = LP_data_prep(RoutingRegion,hor_path,ver_path)
-    start = timeit.default_timer()
-    ilp_p, ilp_obj = solve_by_lp(hor_cap, ver_cap, hor_path, ver_path,p_index,pow = args.use_pow)
-    ilp_time = timeit.default_timer() - start
-    lp_p, lp_obj = solve_by_lp(hor_cap, ver_cap, hor_path, ver_path,p_index, is_ilp = False,pow = args.use_pow)
-else:
-    ilp_obj = 1e10
-    lp_obj = 1e10
-    ilp_time = 0
+# if len(p) > 9999999900000:
+#     hor_cap, ver_cap, hor_path, ver_path = LP_data_prep(RoutingRegion,hor_path,ver_path)
+#     start = timeit.default_timer()
+#     ilp_p, ilp_obj = solve_by_lp(hor_cap, ver_cap, hor_path, ver_path,p_index,pow = args.use_pow)
+#     ilp_time = timeit.default_timer() - start
+#     lp_p, lp_obj = solve_by_lp(hor_cap, ver_cap, hor_path, ver_path,p_index, is_ilp = False,pow = args.use_pow)
+# else:
+ilp_obj = 1e10
+lp_obj = 1e10
+ilp_time = 0
     
 
 

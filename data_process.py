@@ -23,12 +23,15 @@ import data
 import os
 import torch
 import pickle
-# ispd18_test{%d} from 1 to 10
-# data_names = ['ispd18_test%d_metal5' % i for i in [5,6]]
-data_names = ['ispd19_test%d_metal5' % i for i in [8,9]]
+# data_names are all directory names in {cugr_dir}/benchmark/
+
 # data_names = ['ispd18_test%d' % i for i in range(5,6)]
 # # data_names += ['ispd19_test%d' % i for i in range(1,8)]
 cugr_dir = '/home/scratch.rliang_hardware/wli1/cu-gr'
+benchmark_path = os.path.join(cugr_dir, "benchmark")
+# List all directory names in the benchmark_path
+data_names = [d for d in os.listdir(benchmark_path) if os.path.isdir(os.path.join(benchmark_path, d))]
+print("data_names: ", data_names)
 results = {} # results[i]['net'][j] is the j_th Net object in i benchmark; results[i]['region'] = routing region
 for data_name in data_names:
     # cd {cugr_dir}/run/ 
@@ -54,7 +57,6 @@ for data_name in data_names:
     first_layer = True
     hor_cap_list = []
     ver_cap_list = []
-    # we load the fixed2D.txt and capacity2D.txt, which stores the blockage and capacity information for each gcell
     with open('./fixed3D.txt', 'r') as f:
         with open('capacity3D.txt','r') as f2:
 
@@ -91,10 +93,6 @@ for data_name in data_names:
                     ver_cap[:,index] = line2
                     ver_fix[:,index] = line
                 index += 1
-    if direction == 0:
-        hor_cap_list.append(hor_cap-hor_fix)
-    else:
-        ver_cap_list.append(ver_cap-ver_fix)
     RoutingGrid3d = data.routing_region_3D(xmax, ymax, (hor_cap_list,ver_cap_list), is_hor)
     results[data_name]['region3D'] = RoutingGrid3d
     # we load the fixed2D.txt and capacity2D.txt, which stores the blockage and capacity information for each gcell
