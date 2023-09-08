@@ -4,3 +4,4 @@ CUGR2_guide
 *.csv
 tmp
 ray_results
+*.out

@@ -60,8 +60,8 @@ def train_model(config):
         min_resource = float(re.search(r"min resource:\s+(-?\d+(\.\d+)?)", content).group(1))
 
     # Compute the score
-    # score = wire_length * 0.5 + via_count * 2 + overflow * 3000 - min_resource * 10000
-    score = via_count * 2 + overflow * 3000 - min_resource * 10000
+    score = wire_length * 0.5 + via_count * 2 + overflow * 3000 - min_resource * 10000
+    # score = via_count * 2 + overflow * 3000 - min_resource * 10000
 
     # Report the metrics
     return {"score":score, "wire_length":wire_length, "via_count":via_count, "overflow":overflow, "min_resource":min_resource}

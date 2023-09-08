@@ -32,6 +32,13 @@ import tracemalloc
 import os
 import numpy as np
 import sys
+# fix the seed
+torch.manual_seed(0)
+np.random.seed(0)
+torch.backends.cudnn.deterministic = True
+import random
+random.seed(0)
+
 old_out = sys.stdout
 class StAmpedOut:
     """Stamped stdout."""
