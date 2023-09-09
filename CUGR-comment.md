@@ -74,7 +74,12 @@ The functions are hierarchically organized as follows:
 # How CUGR2.0 works
 
 ## Data structure
-+ Each pin has a series of `AccessPoints` based on its size and location; Then, the best access point `selectedAccessPoints` is selected based on its layer and neighboring points. When multiple pin is in the same 2-D gcell, the access point's layer Intervel will be updated.
++ Each pin has a series of `AccessPoints` based on its size and location; Then, the best access point `selectedAccessPoints` is selected based on the accessibity (capacity >= 1 for connected edges, q: why not capacity - demand >= 1) and distacne to the net center. When multiple pin is in the same 2-D gcell, the access point's layer Intervel will be updated.
+
+`selectedAccessPoints.key` = selected pin location x* ymax + y
+`selectedAccessPoints.value`.first = Point object
+`selectedAccessPoints.value`.second = layer Intervel
+
 ## How to calculate costs?
 
 ### Pattern Routing
@@ -83,7 +88,7 @@ The functions are hierarchically organized as follows:
 + Each turning point has a via cost by `weight_via_number = 4`
 + Wire cost (`wireCostView`) = edge physical length * (`unit_weight_wire_length = 0.5 / m2_pitch (pitch width at m2 layer)` + `unitLengthShortCost` * k), 
     +  k = 1 if capacity < 1; k = logistic(cap - demand, `maze_logistic_slope` = 0.5)
-    + `unitLengthShortCost` = min(`unit_area_short_cost` * layer width) among all layers, where `unit_area_short_cost` = (`weight_short_area = 500`)/(m2_pitch^2)
+    + `unitLengthShortCost` = min(`unit_area_short_cost` * layer width (by `getWidth`)) among all layers, where `unit_area_short_cost` = (`weight_short_area = 500`)/(m2_pitch^2)
 
 
 ## Pattern Routing
@@ -92,10 +97,40 @@ The functions are hierarchically organized as follows:
     + Each node is a `std::shared_ptr<PatternRoutingNode>`, and the topology is stored by `.children` vector.
 
 ## Maze Routing
-+ In mazerouting.cpp, Vertex is actually edges in gcell graph
+    // edges[u][0] is the upper node (x+1, or y+1) connecting u 
+    // edges[u][1] is the lower node (x-1, or y-1) connecting u
+    // edges[u][2] is the diff-layer node connecting u
+    // costs[u][i] is corresponding cost of edges[u][i]
+In maze routing, each node is divided into two sub-node (ranging from (0,x*y) to (x*y+1, 2*x*y)). Each sub-node can only connects either horizontal or vertical edges
+
 ## How to do patching (for CUGR2.0)
 1. Pin access patch, for pins at the bottom layer. add 3*3 (3 is defined by `pin_patch_padding`) gcells around the pin with height 3.
 2. Wire segment patches, if the wire segment is not sparse, i.e., aviable tracks < 2 ( 2 is defined by `wire_patch_threshold`), also patch above and bottom layer unless the above/bottom layer is not sparse.
 If the prev cell is not patched. the `wire_patch_threshold` will be increased by 1.2 per cell (1.2 is defined by `wire_patch_inflation_rate`)
 
 ## Parameters
+
+## What we changed CUGR2 so far
++ (_updateAP) In SelectAccessPoints. We change the accessbility from capacity to capacity - demand
+    + This seems to be trivial, it improves GR results, but very trivial, probably most pins only occupy one gcell (so no need to select)
+
++ (_2Viacost) In Maze routing, double via cost: this improves GR results for all cases
+
++ (_NewSort) With the two techniques AND with new sort: It has significant influence, but necessarily always better than original sort
+
+## How via influences demand in CUGR2
+via has two gcells (for two layers) each gcell has two edge, one is lowerEdge, the other is higherEdge. 
+The demand = layerMinLengths / (low edge length + high edge length) * (via_multiplier = 2)
+> I guess layerMinLength is the minimum allowed length in this layer due to fabirication constraint. So, via_multiplier is a mathematical estimate of how long the via will occupy the edge.
+
+In Our 2D case. We need to consider two types of "vias":
+1. turning points in 2-pin net. The number of layers could be estimated by \sqrt{total layer number}. but we could explore a congested-based estimate using statistics
+2. Pins and steiner points. The number of layers could be directly high_layer - min_layer + 1, (this might be 3 for most cases, I need to print them for verification, if it is 3 for most case, maybe \sqrt{total layer number} is a good estimate)
+
+Then, the demand could be calculated by layer_number*(via_multiplier = 2) * layerMinLengths / (low edge length + high edge length)
+
+## How CUGR2 handles 1. Single Pin which covers multiple layers 2. Multiple pins which are in the same gcell node
+
+When translate from DP results (`PatternRoutingNode`) to real routing results (`GRTreeNode`).
+Even the node only occupies one gcell, it (`getRoutingTree`) would create child nodes to connects from low layer to high layer.
+And then, in `commitVia`, these influence are committed.

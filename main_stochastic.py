@@ -71,7 +71,7 @@ parser.add_argument('--lr', type=float, default=0.3)
 parser.add_argument('--t', type=float, default=1, help = "temperature scale")
 parser.add_argument('--tree_t', type=float, default=0.85, help = "temperature scale for tree candidates, since we only output one tree, we use 0.85 here")
 parser.add_argument('--iter', type=int, default=500)
-parser.add_argument('--epoch_iter', type=int, default=10)
+parser.add_argument('--epoch_iter', type=int, default=100)
 parser.add_argument('--act', type=str, default='celu', help = 'relu, leaky_relu, celu, exp')
 parser.add_argument('--via_coeff', type=float, default=0.05)
 parser.add_argument('--wl_coeff', type=float, default=0.1)
@@ -93,8 +93,8 @@ parser.add_argument('--max_c', type=int, default=20, help =
                     "the maximum number of c shape routing candidates, if we have more than max_c candidates, we will increase the c_step until we have less than max_c candidates")
 parser.add_argument('--max_c_out_ratio', type=float, default=5, help = 
                     "when pick c turning points, we need to extend the edge, this is the maximum ratio that we extend the edge, default is 1, means if x width is n, we will extend n along with x-axis")
-parser.add_argument('--pin_ratio', type=float, default=1, help = 
-                    "Given a pin which occupies one layer in one gcell, how many capacity units can it occupy, default is 1")
+parser.add_argument('--pin_ratio', type=float, default=2, help = 
+                    "Same parameter with CUGR2 (via_multiplier).Given a pin which occupies one layer in one gcell, how many capacity units can it occupy, default is 2")
 parser.add_argument('--add_CZ', type=bool, default=False, help = 'whether add c and z shape candidates in the candidate pool, if so, will add z after 20% iterations, and add c after 50% iterations')
 
 
@@ -130,18 +130,15 @@ else:
     args.ymax = RoutingRegion.ymax
     args.net_num = len(RouteNets)
     RoutingRegion3D = results["region3D"]
-    if RoutingRegion3D.hor_first:
-        RoutingRegion3D.cap_mat_3D = (RoutingRegion3D.cap_mat_3D[0][1:],RoutingRegion3D.cap_mat_3D[1])
-    else:
-        RoutingRegion3D.cap_mat_3D = (RoutingRegion3D.cap_mat_3D[0],RoutingRegion3D.cap_mat_3D[1][1:])
     num_layer = len(RoutingRegion3D.cap_mat_3D[0]) + len(RoutingRegion3D.cap_mat_3D[1])
+    args.num_layer = num_layer
     args.via_layer = float(np.sqrt(num_layer))
     RoutingRegion.cap_mat = [torch.stack(RoutingRegion3D.cap_mat_3D[0]).sum(0),torch.stack(RoutingRegion3D.cap_mat_3D[1]).sum(0)]
     RoutingRegion.cap_mat = [RoutingRegion.cap_mat[0] * args.capacity,RoutingRegion.cap_mat[1] * args.capacity]
-    pin_density = util.get_pin_density(RouteNets,args.xmax,args.ymax)
-    pin_density *= args.pin_ratio
-    RoutingRegion.cap_mat = util.upd_cap_by_pin(RoutingRegion.cap_mat,pin_density)
+    hor_pin_demand, ver_pin_demand = util.get_pin_demand(RouteNets,args.xmax,args.ymax)
+    RoutingRegion.cap_mat = util.upd_cap_by_pin_demand(RoutingRegion.cap_mat,pin_density)
     RoutingRegion.to(args.device)
+    util.print_data_stat(args)
     if args.read_new_tree:
         # args.data_path is removing final /....pt
         cugr2_dir_path = args.data_path[:-len(args.data_path.split('/')[-1])]

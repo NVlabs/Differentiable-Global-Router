@@ -744,25 +744,34 @@ def write(f,x,y,x_min,x_max, y_min,y_max,this_layer,total_num_layer = 9, range_n
         write_one_layer(f,x,y,x_min,x_max, y_min,y_max,start_layer + i)
 
 """
-To better estimate the via cost, we need to set the pin_density for each pin location.
+To better estimate the overflow cost, we need to set the influence by each physical pin.
+NOTE: steiner points here are not considered, instead, it is related with tree stucture.
+Require:
+    layer_info: the layer information, read from CUGR2
 Return:
-    pin_density: a 2d array, pin_density[x][y] = # of pins at (x,y)
-    low_pin_penalty: if the pin layer start from 0 (metal1), we multiply the pin_density by low_pin_penalty
+    hor_pin_demand: (xmax, ymax - 1)
+    ver_pin_demand: (xmax - 1, ymax)
 """
-def get_pin_density(nets, xmax, ymax, low_pin_penalty = 1):
-    pin_density = np.zeros((xmax,ymax))
+def get_pin_demand(nets, args, layer_info):
+    hor_pin_demand = np.zeros((args.xmax,args.ymax - 1))
+    ver_pin_demand = np.zeros((args.xmax - 1,args.ymax))
+    layer2number = {} # layer number : number of this case
     for net in nets:
-        # should be changed if the steiner tree is changed
-        for pin in net.pins[0]:
-            if pin.is_steiner is True:
-                pin_density[pin.x][pin.y] += 2 # default steiner layer is 2
-            else:
-                this_density = pin.physical_pin_layers[1] - pin.physical_pin_layers[0]
+        for pin in net.pins[0]: # physical pins for all trees are the same. So we only need pick net.pins[0] (the first tree candidate)
+            if pin.is_steiner is not True:
+                for layer_idx in range(pin.physical_pin_layers[0],pin.physical_pin_layers[1] + 1):
+                    real_layer_idx = layer_idx - 1 # Metal layer 0 is not used in routing.
+                    if real_layer_idx < 0:
+                        continue
+                    
+                this_density = pin.physical_pin_layers[1] - pin.physical_pin_layers[0] + 1
+                if this_density not in layer2number.keys():
+                    layer2number[this_density] = 1
+                else:
+                    layer2number[this_density] += 1
                 assert(this_density >= 0)
-                if pin.physical_pin_layers[0] <= 2:
-                    this_density *= low_pin_penalty
-                pin_density[pin.x][pin.y] += this_density
-    return pin_density
+    print("layer_number statistics: {}".format(layer2number))
+    return hor_pin_demand, ver_pin_demand
 
 
 """
@@ -1263,3 +1272,11 @@ def read_tree(tree_path):
                 if parent_indx >= 0:
                     pin_list[parent_indx].add_child(pin_index)
     return result
+
+# print data read into the args
+def print_data_stat(args):
+    print("data_name: ", args.data_name)
+    print("xmax: ", args.xmax)
+    print("ymax: ", args.ymax)
+    print("num_nets: ", args.num_nets)
+    print("num_layers: ", args.num_layers)

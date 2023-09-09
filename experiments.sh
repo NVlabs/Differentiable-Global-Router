@@ -10,9 +10,9 @@ do
     # echo new line
     echo ""
     echo "Now Run data: $data"
-    # ./CUGR2.sh $data
+    ./CUGR2.sh $data
     # cd $this_path
-    ./ours.sh $data
+    # ./ours.sh $data
     # cd $this_path
     # ./ours_CZ.sh $data
     # ./New_Tree.sh $data

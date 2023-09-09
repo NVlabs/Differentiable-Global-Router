@@ -35,7 +35,7 @@ for data_name in data_names:
     results[data_name] = {}
     os.chdir('{cugr2_dir}/run/'.format(cugr2_dir = cugr2_dir))
     os.system('rm {cugr2_dir}/benchmark/{data_name}/{data_name}.output2'.format(cugr2_dir = cugr2_dir, data_name = data_name))
-    os.system('./route -lef {cugr2_dir}/benchmark/{data_name}/{data_name}.input.lef -def {cugr2_dir}/benchmark/{data_name}/{data_name}.input.def -output {cugr2_dir}/benchmark/{data_name}/{data_name}.output2 -threads 1'.format(cugr2_dir = cugr2_dir, data_name = data_name))
+    os.system('./route -lef {cugr2_dir}/benchmark/{data_name}/{data_name}.input.lef -def {cugr2_dir}/benchmark/{data_name}/{data_name}.input.def -output {cugr2_dir}/benchmark/{data_name}/{data_name}.output2 -threads 1 -sort 1'.format(cugr2_dir = cugr2_dir, data_name = data_name))
     # wait until the output file is generated
     while not os.path.exists('{cugr2_dir}/benchmark/{data_name}/{data_name}.output2'.format(cugr2_dir = cugr2_dir, data_name = data_name)):
         pass
@@ -153,6 +153,15 @@ for data_name in data_names:
                 if parent_indx >= 0:
                     pin_list[parent_indx].add_child(pin_index)
     results[data_name]['net'] = result
+
+    edge_length = []
+    # load 'edge_length.txt'. edge_length[0] is edge length array for horizontal edges, edge_length[1] is for vertical edges
+    # in edge_length.txt, first line is the list of horizontal edge lengths, second line is the list of vertical edge lengths
+    with open('./edge_length.txt', 'r') as f:
+        for line in f.readlines():
+            line = line.split()
+            edge_length.append(torch.tensor([float(x) for x in line]))
+    results[data_name]['edge_length'] = edge_length
     # save results
     # pickle.dump(results[data_name], open(data_name + '.pkl', 'wb'))
     torch.save(results[data_name], data_name + '.pt')
