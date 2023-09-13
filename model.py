@@ -215,7 +215,7 @@ def layer_assignment_objective(full_end_index,hor_out, ver_out,hor_mask, edge_pa
 
 
 # define objective function
-def objective_function(RoutingRegion, hor_path, ver_path,wire_length_count, via_info, p, args,activation = None,iteration=None, hor_batch_size=None,ver_batch_size=None, hor_shuffled_indices=None,ver_shuffled_indices = None):
+def objective_function(RoutingRegion, hor_path, ver_path,wire_length_count, via_info, p, args,hor_pin_demand,ver_pin_demand,hor_edge_length,ver_edge_length,min_unit_length_short_cost, m2_pitch,activation = None,iteration=None, hor_batch_size=None,ver_batch_size=None, hor_shuffled_indices=None,ver_shuffled_indices = None):
     """
     the objective function is calculated by:
     1. overflow cost, i.e., sum relu (sum (p[i] * (hor_path[i])) - RoutingRegion.cap_mat[0])) + sum relu sum (p[i] * (candidate_pool[p_index2pattern_index[i]][0][1]) - RoutingRegion.cap_mat[1])
@@ -230,6 +230,12 @@ def objective_function(RoutingRegion, hor_path, ver_path,wire_length_count, via_
         p: tensor, (n), p[i] is the probability of the i_th candidate to be selected
         pow: bool, whether to use a power based function to calculate overflow rather than relu
         add_via_in_overflow: bool, whether to add via congestion in overflow cost (demand = wire cost + \sqrt((via(u) + via (v))/2))
+        hor_pin_demand: (xmax, ymax), the horizontal demand from physical pins at each gcell. Then value is an approximated per-layer demand
+        ver_pin_demand: (xmax, ymax), the vertical demand from physical pins at each gcell. Then value is an approximated per-layer demand 
+        hor_edge_length: (1, ymax - 1), the physical lenght of each horizontal edge
+        ver_edge_length: (xmax - 1, 1), the physical lenght of each vertical edge
+        min_unit_length_short_cost, minimal unit length short cost among all layers. (A value in CUGR2 to model overflow cost)
+        m2_pitch: the pitch of M2 layer
     """
     pow = args.use_pow
     add_via_in_overflow = args.add_via
@@ -238,6 +244,10 @@ def objective_function(RoutingRegion, hor_path, ver_path,wire_length_count, via_
     # calculate overflow cost by tensor operation directly
     hor_cap = RoutingRegion.cap_mat[0].flatten()
     ver_cap = RoutingRegion.cap_mat[1].flatten()
+    # hor_edge_length = hor_edge_length.repeat xmax at dim 0, and then flatten()
+    hor_edge_length = hor_edge_length.repeat(RoutingRegion.xmax,1).flatten()
+    # ver_edge_length = ver_edge_length.repeat ymax at dim 1, and then flatten()
+    ver_edge_length = ver_edge_length.repeat(1,RoutingRegion.ymax).flatten()
 
     via_map,via_count = via_info
     hor_demand = torch.matmul(hor_path,p) # the demand for the horizontal edge, if add_via_in_overflow is False, we only count the wire congestion
@@ -246,10 +256,10 @@ def objective_function(RoutingRegion, hor_path, ver_path,wire_length_count, via_
         xmax = RoutingRegion.xmax
         ymax = RoutingRegion.ymax
         this_via_map = torch.matmul(via_map,p).view(xmax,ymax) # (xmax, ymax)
-        # hor_via = torch.sqrt((via_map[:,:-1] + via_map[:,1:])/2).flatten()
-        # ver_via = torch.sqrt((via_map[:-1,:] + via_map[1:,:])/2).flatten()
-        hor_via = ((this_via_map[:,:-1] + this_via_map[:,1:]) * args.via_layer / 2).flatten() # /2 because layers are half divided by hor/ver
-        ver_via = ((this_via_map[:-1,:] + this_via_map[1:,:]) * args.via_layer / 2).flatten()
+        hor_via_map = hor_pin_demand * this_via_map
+        ver_via_map = ver_pin_demand * this_via_map
+        hor_via = ((hor_via_map[:,:-1] + hor_via_map[:,1:]) * args.via_layer).flatten() # /2 because layers are half divided by hor/ver
+        ver_via = ((ver_via_map[:-1,:] + ver_via_map[1:,:]) * args.via_layer).flatten()
         hor_demand = hor_via + hor_demand
         ver_demand = ver_via + ver_demand
 
@@ -277,12 +287,14 @@ def objective_function(RoutingRegion, hor_path, ver_path,wire_length_count, via_
     ver_demand = ver_demand[ver_mask]
     hor_cap = hor_cap[hor_mask]
     ver_cap = ver_cap[ver_mask]
+    hor_edge_length = hor_edge_length[hor_mask]
+    ver_edge_length = ver_edge_length[ver_mask]
 
     if pow:
-        overflow_cost = torch.sum(1 / (1 + torch.exp(hor_cap-hor_demand))) + torch.sum(1 / (1 + torch.exp(ver_cap-ver_demand)))
+        overflow_cost = torch.sum(hor_edge_length * min_unit_length_short_cost * (1 / (1 + torch.exp((hor_cap-hor_demand) * 0.5)))) + torch.sum(ver_edge_length * min_unit_length_short_cost * (1 / (1 + torch.exp((ver_cap-ver_demand) * 0.5)))) # 0.5 is the maze_logistic_slope in CUGR2
     else:
         if activation == 'celu':
-            act = torch.nn.CELU(alpha = 2.0)
+            act = torch.nn.CELU(alpha = args.celu_alpha)
         elif activation == 'relu':
             act = torch.nn.ReLU()
         elif activation == 'leaky_relu':
@@ -293,10 +305,10 @@ def objective_function(RoutingRegion, hor_path, ver_path,wire_length_count, via_
             act = exp
         else:
             raise NotImplementedError
-        overflow_cost = torch.sum(act(- hor_cap + hor_demand )) + torch.sum(act(- ver_cap + ver_demand))
+        overflow_cost = torch.sum(hor_edge_length * min_unit_length_short_cost *(act(- hor_cap + hor_demand ))) + torch.sum(ver_edge_length * min_unit_length_short_cost *(act(- ver_cap + ver_demand)))
         max_overflow = max(torch.nn.ReLU()(- hor_cap + hor_demand).max(),torch.nn.ReLU()(- ver_cap + ver_demand).max())
-    via_cost = (via_count * p).sum()
-    wire_length_cost = (wire_length_count * p).sum()
+    via_cost = (via_count * p).sum() * args.via_layer
+    wire_length_cost = (wire_length_count * p).sum() / m2_pitch
     return overflow_cost, via_cost, wire_length_cost, max_overflow, hor_demand - hor_cap, ver_demand - ver_cap
 
 def discrete_objective_function(RoutingRegion, hor_path, ver_path,wire_length_count, via_info, selected_index, args):
