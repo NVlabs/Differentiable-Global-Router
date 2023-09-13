@@ -71,7 +71,7 @@ parser.add_argument('--lr', type=float, default=0.3)
 parser.add_argument('--t', type=float, default=1, help = "temperature scale")
 parser.add_argument('--tree_t', type=float, default=0.85, help = "temperature scale for tree candidates, since we only output one tree, we use 0.85 here")
 parser.add_argument('--iter', type=int, default=500)
-parser.add_argument('--epoch_iter', type=int, default=100)
+parser.add_argument('--epoch_iter', type=int, default=10, help = "how many iterations for each epoch")
 parser.add_argument('--act', type=str, default='celu', help = 'relu, leaky_relu, celu, exp')
 parser.add_argument('--via_coeff', type=float, default=4)
 parser.add_argument('--wl_coeff', type=float, default=0.5)
@@ -247,7 +247,7 @@ for i in range(args.iter):
 
         cost_inference_time += timeit.default_timer() - cost_start
         back_start = timeit.default_timer()
-        total_cost = overflow_cost*args.overflow_coeff + wire_length_cost*args.wl_coeff + via_cost*args.via_coeff
+        total_cost = overflow_cost*args.overflow_coeff * args.epoch_iter + wire_length_cost*args.wl_coeff + via_cost*args.via_coeff # In stochastic version, only 1/epoch_iter of the overflow is used, to balance with via cost and wirelength cost, we need to multiply by epoch_iter
         # total_cost = overflow_cost 
         total_cost.backward()
         optimizer.step()
@@ -282,7 +282,6 @@ for i in range(args.iter):
         current_best_continue_cost = cost_list[-1]
     if i == args.iter - 1:
         max_p, argmax = scatter_max(p,p_index_full)
-        overflow_cost, wl_cost, via_cost, _ = model.discrete_objective_function(RoutingRegion, hor_path, ver_path, wire_length_count, via_info, argmax,args)
         current_best_cost = (overflow_cost + wire_length_cost*args.wl_coeff + via_cost*args.via_coeff).cpu().item()
         util.visualize_result(args.xmax,args.ymax, hor_path, ver_path, p, name=args.data_name +'_'+ str(config["t"]) + '_' + str(config["lr"]),
                         capacity_mat=RoutingRegion.cap_mat,
