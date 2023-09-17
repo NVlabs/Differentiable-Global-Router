@@ -237,7 +237,6 @@ def objective_function(RoutingRegion, hor_path, ver_path,wire_length_count, via_
         min_unit_length_short_cost, minimal unit length short cost among all layers. (A value in CUGR2 to model overflow cost)
         m2_pitch: the pitch of M2 layer
     """
-    pow = args.use_pow
     add_via_in_overflow = args.add_via
     if activation is None:
         activation = args.act
@@ -290,23 +289,23 @@ def objective_function(RoutingRegion, hor_path, ver_path,wire_length_count, via_
     hor_edge_length = hor_edge_length[hor_mask]
     ver_edge_length = ver_edge_length[ver_mask]
 
-    if pow:
-        overflow_cost = torch.sum(hor_edge_length * min_unit_length_short_cost * (1 / (1 + torch.exp((hor_cap-hor_demand) * 0.5)))) + torch.sum(ver_edge_length * min_unit_length_short_cost * (1 / (1 + torch.exp((ver_cap-ver_demand) * 0.5)))) # 0.5 is the maze_logistic_slope in CUGR2
+
+    if activation == 'celu':
+        act = torch.nn.CELU(alpha = args.celu_alpha)
+    elif activation == 'relu':
+        act = torch.nn.ReLU()
+    elif activation == 'leaky_relu':
+        act = torch.nn.LeakyReLU()
+    elif activation == 'exp':
+        def exp(x):
+            return torch.exp(x)
+        act = exp
+    elif activation == 'sigmoid':
+        act = torch.nn.Sigmoid()
     else:
-        if activation == 'celu':
-            act = torch.nn.CELU(alpha = args.celu_alpha)
-        elif activation == 'relu':
-            act = torch.nn.ReLU()
-        elif activation == 'leaky_relu':
-            act = torch.nn.LeakyReLU()
-        elif activation == 'exp':
-            def exp(x):
-                return torch.exp(x/5)
-            act = exp
-        else:
-            raise NotImplementedError
-        overflow_cost = torch.sum(hor_edge_length * min_unit_length_short_cost *(act(- hor_cap + hor_demand ))) + torch.sum(ver_edge_length * min_unit_length_short_cost *(act(- ver_cap + ver_demand)))
-        max_overflow = max(torch.nn.ReLU()(- hor_cap + hor_demand).max(),torch.nn.ReLU()(- ver_cap + ver_demand).max())
+        raise NotImplementedError
+    overflow_cost = torch.sum(hor_edge_length * min_unit_length_short_cost *(act((- hor_cap + hor_demand)* args.act_scale ))) + torch.sum(ver_edge_length * min_unit_length_short_cost *(act((- ver_cap + ver_demand)* args.act_scale)))
+    max_overflow = max(torch.nn.ReLU()(- hor_cap + hor_demand).max(),torch.nn.ReLU()(- ver_cap + ver_demand).max())
     via_cost = (via_count * p).sum() * args.via_layer
     wire_length_cost = (wire_length_count * p).sum() / m2_pitch
     return overflow_cost, via_cost, wire_length_cost, max_overflow, hor_demand - hor_cap, ver_demand - ver_cap

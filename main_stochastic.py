@@ -32,6 +32,12 @@ import tracemalloc
 import os
 import numpy as np
 import sys
+# fix the seed
+torch.manual_seed(0)
+np.random.seed(0)
+torch.backends.cudnn.deterministic = True
+import random
+random.seed(0)
 old_out = sys.stdout
 class StAmpedOut:
     """Stamped stdout."""
@@ -70,16 +76,20 @@ parser.add_argument('--data_path', type=str, default='/scratch/weili3/cu-gr-2/ru
 parser.add_argument('--lr', type=float, default=0.3)
 parser.add_argument('--t', type=float, default=1, help = "temperature scale")
 parser.add_argument('--tree_t', type=float, default=0.85, help = "temperature scale for tree candidates, since we only output one tree, we use 0.85 here")
-parser.add_argument('--iter', type=int, default=500)
+parser.add_argument('--iter', type=int, default=300)
 parser.add_argument('--epoch_iter', type=int, default=10, help = "how many iterations for each epoch")
-parser.add_argument('--act', type=str, default='celu', help = 'relu, leaky_relu, celu, exp')
+parser.add_argument('--act', type=str, default='sigmoid', help = 'relu, leaky_relu, celu, exp, sigmoid')
+parser.add_argument('--weight_decay', type=float, default=0)
+parser.add_argument('--beta1', type=float, default=0.9)
 parser.add_argument('--via_coeff', type=float, default=4)
 parser.add_argument('--wl_coeff', type=float, default=0.5)
 parser.add_argument('--overflow_coeff', type=float, default=1, help ="500 is already included in unit_length_short_cost")
 # celu_alpha, default is 2.0
 parser.add_argument('--celu_alpha', type=float, default=2.0)
+parser.add_argument('--act_scale', type=float, default=0.5, help="scale the cap - demand value")
 parser.add_argument('--via_layer', type=float, default=3,help= "how many layers does a via occupy, default is sqrt(num_layer)")
 parser.add_argument('--use_gumble', type=bool, default=True)
+
 
 # candidate pool hyperparameters
 # pattern_level, default is 2
@@ -96,26 +106,29 @@ parser.add_argument('--max_c', type=int, default=20, help =
                     "the maximum number of c shape routing candidates, if we have more than max_c candidates, we will increase the c_step until we have less than max_c candidates")
 parser.add_argument('--max_c_out_ratio', type=float, default=5, help = 
                     "when pick c turning points, we need to extend the edge, this is the maximum ratio that we extend the edge, default is 1, means if x width is n, we will extend n along with x-axis")
-parser.add_argument('--pin_ratio', type=float, default=2, help = 
-                    "Same parameter with CUGR2 (via_multiplier).Given a pin which occupies one layer in one gcell, how many capacity units can it occupy, default is 2")
+parser.add_argument('--pin_ratio', type=float, default=1, help = "Influence of pin density to the capacity")
+parser.add_argument('--local_net_ratio', type=float, default=1, help = "Influence of loca_net density to the capacity")
 parser.add_argument('--add_CZ', type=bool, default=False, help = 'whether add c and z shape candidates in the candidate pool, if so, will add z after 20% iterations, and add c after 50% iterations')
 
 
 # framework parameters
-# use_pow, default is False, if True, a power-based overflow cost with via inserted is used
-parser.add_argument('--use_pow', type=bool, default=False)
 parser.add_argument('--add_via', type=bool, default=True, help="If True, will add via as a demand in overflow cost cal")
-parser.add_argument('--device', type=str, default='cuda:0')
-parser.add_argument('--select_threshold', type=float, default=0.9, help = 
+parser.add_argument('--device', type=int, default=0)
+parser.add_argument('--select_threshold', type=float, default=0.85, help = 
                     "Set a Probability threshold: t, select candidates from lager p to smaller p, until sum of candidate probabilities are larger than t")
 parser.add_argument('--read_new_tree', type=bool, default=False, help ='whether read new tree generated from phase 2 of CUGR2. If true, will read new trees, and those candidates will be used in the framework')
+# output_name, default is None
+parser.add_argument('--output_name', type=str, default='output', help = "the name of the output file")
 
 args = parser.parse_args()
-args.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+args.device = 'cuda:'+str(args.device) if torch.cuda.is_available() else 'cpu'
 args.data_name = args.data_path.split('/')[-1].split('.')[0]
 
+# args.lr = args.lr / args.epoch_iter, otherwise, it is overfitting
+args.lr = args.lr / args.epoch_iter
+
 # set CUDA device as 0 
-CUDA_VISIBLE_DEVICES=0
+CUDA_VISIBLE_DEVICES=args.device
 start = timeit.default_timer()
 # if data_path is None, then we use random generated data
 assert args.data_path is not None, "Random data is not used now"
@@ -143,9 +156,12 @@ else:
     RoutingRegion.cap_mat = [torch.stack(RoutingRegion3D.cap_mat_3D[0]).sum(0),torch.stack(RoutingRegion3D.cap_mat_3D[1]).sum(0)]
     RoutingRegion.cap_mat = [RoutingRegion.cap_mat[0] * args.capacity,RoutingRegion.cap_mat[1] * args.capacity]
     results['edge_length'] = [results['edge_length'][1],results['edge_length'][0]] # the hor and ver definitions are different from CUGR2, therefore, we inverse
+    # get the edge demand inflence by physical pins (and steiner points if only one tree)
     hor_edge_demand,ver_edge_demand,hor_pin_demand, ver_pin_demand = util.get_pin_demand(RouteNets, args,results['layers'], results['edge_length'])
-    RoutingRegion.cap_mat[0] = RoutingRegion.cap_mat[0] - torch.tensor(hor_edge_demand)
-    RoutingRegion.cap_mat[1] = RoutingRegion.cap_mat[1] - torch.tensor(ver_edge_demand)
+    hor_local_net_demand, ver_local_net_demand = util.get_local_net(RouteNets, args)
+
+    RoutingRegion.cap_mat[0] = RoutingRegion.cap_mat[0] - torch.tensor(hor_edge_demand) * args.pin_ratio - hor_local_net_demand * args.local_net_ratio
+    RoutingRegion.cap_mat[1] = RoutingRegion.cap_mat[1] - torch.tensor(ver_edge_demand) * args.pin_ratio- ver_local_net_demand * args.local_net_ratio
     hor_edge_length = torch.tensor(results['edge_length'][0]).to(args.device).reshape(1,-1)
     ver_edge_length = torch.tensor(results['edge_length'][1]).to(args.device).reshape(-1,1)
     RoutingRegion.to(args.device)
@@ -166,8 +182,8 @@ print("Data generation time: ", timeit.default_timer() - start)
 # For each net, generate a candidate pool, that is
 start = timeit.default_timer()
 # if ./tmp/{data_name}_candidate_pool.pt exists, then load candidate_pool, otherwise, generate candidate_pool
-if False:
-# if os.path.exists('./tmp/' + args.data_name + '_candidate_pool.pt'):
+# if False:
+if os.path.exists('./tmp/' + args.data_name + '_candidate_pool.pt'):
     candidate_pool = torch.load('./tmp/' + args.data_name + '_candidate_pool.pt')
     print("candidate pool loaded")
 else:
@@ -177,8 +193,8 @@ pool_generation_time = timeit.default_timer() - start
 print("Initial candidate pool generation time: ", timeit.default_timer() - start)
 
 # if ./tmp/{data_name}_p_index.pt exists, then load p_index, otherwise, generate p_index
-if False:
-# if os.path.exists('./tmp/' + args.data_name + '_p_index.pt'):
+# if False:
+if os.path.exists('./tmp/' + args.data_name + '_p_index.pt'):
     p_index, p_index_full, p_index2pattern_index,hor_path, ver_path, wire_length_count, via_info, tree_p_index, tree_index_per_candidate, tree_p_index2pattern_index, tree_p_index_full = torch.load('./tmp/' + args.data_name + '_p_index.pt')
 else:
     p_index, p_index_full, p_index2pattern_index,hor_path, ver_path, wire_length_count, via_info, tree_p_index, tree_index_per_candidate, tree_p_index2pattern_index, tree_p_index_full= process_pool(candidate_pool,args.xmax, args.ymax,device = args.device)
@@ -205,7 +221,7 @@ back_time = 0 # time to back propagate
 start = timeit.default_timer()
 
 net = model.Net(p_index,pattern_level = args.pattern_level,device= args.device,use_gumble = args.use_gumble, tree_p_index = tree_p_index, tree_index_per_candidate = tree_index_per_candidate).to(args.device)
-optimizer = torch.optim.Adam(net.parameters(), lr=config["lr"])
+optimizer = torch.optim.Adam(net.parameters(), weight_decay = args.weight_decay, betas =(args.beta1,0.999),lr=config["lr"])
 cost_list = []
 current_best_cost = 1e10
 current_best_continue_cost = 1e10
@@ -230,7 +246,7 @@ for i in range(args.iter):
         tree_temperature = tree_temperature * config["tree_t"]  
         # max_p, argmax = scatter_max(p,p_index_full)
         # overflow_cost, wl_cost, via_cost, max_overflow = model.discrete_objective_function(RoutingRegion, hor_path, ver_path, wire_length_count, via_info, argmax,args)
-        print("iter %d, overflow cost: %.3f; via cost: %.3f; wl cost: %.3f; max_overflow: %.1f" % (i, overflow_cost.cpu().item(), via_cost.cpu().item(), wire_length_cost.cpu().item(), max_overflow.cpu().item()))
+        print("iter %d, overflow cost: %.3f; via cost: %.3f; wl cost: %.3f; max_overflow: %.1f" % (i, overflow_cost.cpu().item()*args.epoch_iter, via_cost.cpu().item(), wire_length_cost.cpu().item(), max_overflow.cpu().item()))
        
 
     hor_shuffled_indices = torch.randperm(hor_total_elements)
@@ -305,7 +321,7 @@ if args.read_new_tree is True:
     # set not selected p_index2pattern_index as 0
     p_index2pattern_index[(selected_p_full_index == False).cpu()] = 0
 
-util.write_CUGR_input(RouteNets,candidate_p,p_index_full,candidate_pool,p_index2pattern_index,args.data_name + '_' + str(int(args.read_new_tree)) + '_'  + str(int(args.add_CZ)), args.select_threshold)
+util.write_CUGR_input(RouteNets,candidate_p,p_index_full,candidate_pool,p_index2pattern_index,args.data_name + '_' + args.output_name, args.select_threshold)
 
 
 # plot cost_list and save in ./figs/cost_{data_name}.png

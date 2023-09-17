@@ -116,7 +116,7 @@ If the prev cell is not patched. the `wire_patch_threshold` will be increased by
 
 + (_2Viacost) In Maze routing, double via cost: this improves GR results for all cases
 
-+ (_NewSort) With the two techniques AND with new sort: It has significant influence, but necessarily always better than original sort
++ (_NewSort) With the two techniques AND with new sort: It has significant influence, but not necessarily always better than original sort
 
 ## How via influences demand in CUGR2
 via has two gcells (for two layers) each gcell has two edge, one is lowerEdge, the other is higherEdge. 

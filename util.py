@@ -838,6 +838,31 @@ def get_pin_demand(nets, args, layer_info, edge_length):
 
 
 """
+Get the local net distribution, local net: nets that only occupy one gcell
+Return: influence of local net on each gcell
+"""
+def get_local_net(nets, args):
+    # hor_local_net_demand (xmax, ymax - 1), the number of local net layers (if one local net occupies two layers, then we + 2 in that location) in each gcell
+    local_net_density = np.zeros((args.xmax,args.ymax))
+    num_local_net = 0
+    for net in nets:
+        if len(net.pins[0]) == 1:
+            num_local_net += 1
+            local_net_density[net.pins[0][0].x,net.pins[0][0].y] += (net.pins[0][0].physical_pin_layers[1] - net.pins[0][0].physical_pin_layers[0])
+    
+    print("num_local_net: ",num_local_net)
+    
+    hor_local_net_demand = local_net_density.copy()/2 # xmax, ymax, divide by 2 because hor/ver are both counted
+    hor_local_net_demand[:,1:-1] = hor_local_net_demand[:,1:-1]/2 # mid case divide by 2, since its demand is counted by both left and right
+    hor_local_net_demand = hor_local_net_demand[:,:-1] + hor_local_net_demand[:,1:] # xmax, ymax - 1
+
+    ver_local_net_demand = local_net_density.copy()/2 # xmax, ymax, divide by 2 because hor/ver are both counted
+    ver_local_net_demand[1:-1,:] = ver_local_net_demand[1:-1,:]/2 # mid case divide by 2, since its demand is counted by both left and right
+    ver_local_net_demand = ver_local_net_demand[:-1,:] + ver_local_net_demand[1:,:] # xmax - 1, ymax
+    return hor_local_net_demand, ver_local_net_demand
+
+
+"""
 update capacity based on pin_density
 """
 def upd_cap_by_pin(cap_mat, pin_density):
