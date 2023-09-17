@@ -4,7 +4,7 @@ data_list=("ispd18_test1")
 this_path="/home/weili3/Differentiable-Global-Router" # # DGR path
 benchmark_path="/scratch/weili3/cu-gr-2/benchmark"
 cugr2="/scratch/weili3/cu-gr-2"
-# python data_process_CUGR2.py $cugr2 $benchmark_path # first generate data for DGR
+python data_process_CUGR2.py $cugr2 $benchmark_path # first generate data for DGR
 for data in "${data_list[@]}"
 do
     # run the whole framework
