@@ -20,7 +20,7 @@ benchmark_path=$2
 cugr2=$3
 this_path=$4
 method="NewTree"
-# first round CUGR, generating fine-tuned tree
+# first round CUGR (with new sort), generating fine-tuned tree
 cd $cugr2/run/
 ./route -lef $benchmark_path/$data/$data.input.lef -def $benchmark_path/$data/$data.input.def -output $benchmark_path/$data/$data.CUGR2_NewSort.guide -sort 1 > $cugr2/GR_log/$data\_CUGR2_NewSort.log
 
