@@ -14,4 +14,5 @@ do
     cd $this_path
     ./ours.sh $data
     cd $this_path
+    ./New_Tree.sh $data
 done
