@@ -16,9 +16,9 @@
 # run different parameters for result analysis
 # run different parameters for result analysis
 data="${1:-ispd18_test1}"
-benchmark_path="/scratch/weili3/cu-gr-2/benchmark"
-cugr2="/scratch/weili3/cu-gr-2"
-this_path="/home/weili3/Differentiable-Global-Router"
+benchmark_path=$2
+cugr2=$3
+this_path=$4
 method="NewTree"
 # first round CUGR, generating fine-tuned tree
 ./route -lef $benchmark_path/$data/$data.input.lef -def $benchmark_path/$data/$data.input.def -output $benchmark_path/$data/$data.CUGR2_NewSort.guide -sort 1 > $cugr2/GR_log/$data\_CUGR2_NewSort.log

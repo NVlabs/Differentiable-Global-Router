@@ -1,7 +1,7 @@
 import os
 import re
-
-benchmark_path="/scratch/weili3/cu-gr-2/benchmark"
+import sys
+benchmark_path=sys.argv[1]
 
 def extract_scores_from_splitting(filename, data, method):
     with open(filename, 'r') as f:
