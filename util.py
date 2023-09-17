@@ -1002,7 +1002,8 @@ Require:
 """
 @torch.no_grad()
 def add_CZ(p,p_index_full,p_index2pattern_index,hor_path,ver_path,wire_length_count, via_info, tree_index_per_candidate, 
-           candidate_pool, hor_congestion, ver_congestion, pattern_level,args):
+           candidate_pool, hor_congestion, ver_congestion, pattern_level,args,edge_length):
+    edge_length = [edge_length[0].cpu().numpy(), edge_length[1].cpu().numpy()]
     assert pattern_level == 2 or pattern_level == 3, "pattern_level should be 2 or 3"
     xmax = args.xmax
     ymax = args.ymax
@@ -1045,9 +1046,9 @@ def add_CZ(p,p_index_full,p_index2pattern_index,hor_path,ver_path,wire_length_co
         if pattern_level >= 2:
             # skip z pattern if the either this_pin.x = this_parent_pin.x or this_pin.y = this_parent_pin.y
             if this_pin.x != this_parent_pin.x and this_pin.y != this_parent_pin.y:
-                result += enumerate_z(this_pin, this_parent_pin,args)
+                result += enumerate_z(this_pin, this_parent_pin,args,edge_length)
         if pattern_level >= 3:
-            result += enumerate_c(this_pin, this_parent_pin,args)
+            result += enumerate_c(this_pin, this_parent_pin,args,edge_length)
         if len(result) == 0:
             continue
         wl_list = []
@@ -1101,7 +1102,7 @@ def add_CZ(p,p_index_full,p_index2pattern_index,hor_path,ver_path,wire_length_co
         # print("before calculate cost ", torch.cuda.memory_allocated() / 1024 / 1024, "MB")
 
         # and then calculate the new overflow, pick the top-k candidates as new candidates
-        overflow_cost = torch.sum(torch.nn.CELU(alpha = 2.0)(all_ver_congestion), dim = 0) + torch.sum(torch.nn.CELU(alpha = 2.0)(all_hor_congestion),dim=0)
+        overflow_cost = torch.sum(torch.nn.Sigmoid()(all_ver_congestion * 0.5), dim = 0) + torch.sum(torch.nn.Sigmoid()(all_hor_congestion* 0.5),dim=0)
         total_cost = overflow_cost + this_wire_length_count*args.wl_coeff + this_via_count*args.via_coeff
         # pick the top-k candidates as new candidates
         num_candidate = 1
@@ -1201,7 +1202,7 @@ def add_CZ(p,p_index_full,p_index2pattern_index,hor_path,ver_path,wire_length_co
 """
 Enumerate all Z patterns for a congested 2-pin net
 """
-def enumerate_z(pin, parent_pin,args):
+def enumerate_z(pin, parent_pin,args,edge_length):
     z_step = 1
     x_width = abs(pin.x - parent_pin.x)
     y_width = abs(pin.y - parent_pin.y)
@@ -1223,7 +1224,7 @@ def enumerate_z(pin, parent_pin,args):
             assert turning_y < max(pin.y, parent_pin.y)
         else:
             turning_y = min(pin.y, parent_pin.y)
-        single_z_result = z_pattern_routing(pin, parent_pin, (turning_x, turning_y), args.xmax, args.ymax)
+        single_z_result = z_pattern_routing(pin, parent_pin, (turning_x, turning_y), args.xmax, args.ymax,edge_length)
         result.append(single_z_result)
     return result
 
@@ -1231,7 +1232,7 @@ def enumerate_z(pin, parent_pin,args):
 """
 Enumerate all C patterns for a congested 2-pin net
 """
-def enumerate_c(pin, parent_pin, args):
+def enumerate_c(pin, parent_pin, args,edge_length):
     c_step = 5
     max_c_out_ratio = args.max_c_out_ratio
     x_width = abs(pin.x - parent_pin.x)
@@ -1279,7 +1280,7 @@ def enumerate_c(pin, parent_pin, args):
                 assert turning_x < xmax
             else:
                 assert False
-            single_c_result = z_pattern_routing(pin, parent_pin, (turning_x, turning_y), xmax, ymax)
+            single_c_result = z_pattern_routing(pin, parent_pin, (turning_x, turning_y), xmax, ymax,edge_length)
             result.append(single_c_result)
     return result
         

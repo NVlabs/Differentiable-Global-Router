@@ -23,5 +23,5 @@ if [ "$benchmark" == "ispd18" ]; then
 
     bash "$eval_path/$benchmark""eval/$benchmark""eval.sh" -lef "$benchmark_path/$data/$data.input.lef" -def "$cugr2/DR_result/${method}_$data.txt" -guide "$benchmark_path/$data/$data.${method}.guide" -thread 16 |& tee "$benchmark_path/$data/${method}_$data.final.log"
 else
-    bash "$eval_path/$benchmark""eval/$benchmark""eval.sh" -lef "$benchmark_path/$data/$data.input.lef" -idef "$benchmark_path/$data/$data.input.def" -odef "$cugr2/DR_result/${method}_$data.txt" -guide "$benchmark_path/$data/$data.output3" |& tee "$benchmark_path/$data/${method}_$data.final.log"
+    bash "$eval_path/$benchmark""eval/$benchmark""eval.sh" -lef "$benchmark_path/$data/$data.input.lef" -idef "$benchmark_path/$data/$data.input.def" -odef "$cugr2/DR_result/${method}_$data.txt" -guide "$benchmark_path/$data/$data.${method}.guide" |& tee "$benchmark_path/$data/${method}_$data.final.log"
 fi

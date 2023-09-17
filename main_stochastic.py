@@ -251,6 +251,7 @@ for i in range(args.iter):
 
     hor_shuffled_indices = torch.randperm(hor_total_elements)
     ver_shuffled_indices = torch.randperm(ver_total_elements)
+
     for j in range(args.epoch_iter):
         p_start = timeit.default_timer()
         p, candidate_p, tree_p = net.forward(temperature,tree_temperature)
@@ -280,7 +281,7 @@ for i in range(args.iter):
         if i == (4*update_iteration):
             cz_level = 2
             CZ_result = util.add_CZ(net.p, p_index_full, p_index2pattern_index, hor_path,ver_path,wire_length_count, via_info, tree_index_per_candidate, 
-                                    candidate_pool, hor_overflow, ver_overflow, cz_level,args)
+                                    candidate_pool, hor_overflow, ver_overflow, cz_level,args,results['edge_length'])
             if CZ_result is not None:
                 p_index_full, p_index2pattern_index, hor_path, ver_path, wire_length_count, via_count, via_map, tree_index_per_candidate, new_p, candidate_pool = CZ_result
                 print("iter %d: %d/%d new candidates are generated "% (i, new_p.shape[0] - net.p.shape[0], net.p.shape[0]))

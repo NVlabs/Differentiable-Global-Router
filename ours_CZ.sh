@@ -5,7 +5,7 @@ cugr2="/scratch/weili3/cu-gr-2"
 this_path="/home/weili3/Differentiable-Global-Router"
 method="CZ"
 echo "Processing Ours w. CZ Round... data: $data"
-python3 main_stochastic.py --data_path $cugr2/run/$data.pt --output_name $method --add_CZ True
+python3 main_stochastic.py --data_path $cugr2/run/$data.pt --output_name $method --add_CZ True --epoch_iter 1 
 cd $cugr2/run/
 ./route -lef $benchmark_path/$data/$data.input.lef -def $benchmark_path/$data/$data.input.def -output $benchmark_path/$data/$data.$method.guide -dgr $this_path/CUGR2_guide/CUgr_$data\_$method.txt > $cugr2/GR_log/$data\_$method.log
 cd $cugr2
