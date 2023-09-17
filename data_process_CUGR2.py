@@ -23,9 +23,10 @@ import data
 import os
 import torch
 import pickle
+import sys
 
-cugr2_dir = '/scratch/weili3/cu-gr-2'
-benchmark_path = os.path.join(cugr2_dir, "benchmark")
+cugr2_dir = sys.argv[1] 
+benchmark_path = sys.argv[2] 
 data_names = [d for d in os.listdir(benchmark_path) if os.path.isdir(os.path.join(benchmark_path, d))]
 print("data_names: ", data_names)
 results = {} # results[i]['net'][j] is the j_th Net object in i benchmark; results[i]['region'] = routing region

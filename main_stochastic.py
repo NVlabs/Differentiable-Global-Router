@@ -70,12 +70,12 @@ parser.add_argument('--max_pin_num', type=int, default=3)
 parser.add_argument('--net_size', type=int, default=10)
 
 # data_path, str, the path for contest benchmark, when value is None, then, use random data
-parser.add_argument('--data_path', type=str, default='/scratch/weili3/cu-gr-2/run/ispd18_test1.pt')
+parser.add_argument('--data_path', type=str, default='/scratch/weili3/cu-gr-2/run/ispd18_test5_metal5.pt')
 
 # DL hyperparameters
 parser.add_argument('--lr', type=float, default=0.3)
 parser.add_argument('--t', type=float, default=1, help = "temperature scale")
-parser.add_argument('--tree_t', type=float, default=0.85, help = "temperature scale for tree candidates, since we only output one tree, we use 0.85 here")
+parser.add_argument('--tree_t', type=float, default=0.9, help = "temperature scale for tree candidates, since we only output one tree, we use 0.85 here")
 parser.add_argument('--iter', type=int, default=300)
 parser.add_argument('--epoch_iter', type=int, default=10, help = "how many iterations for each epoch")
 parser.add_argument('--act', type=str, default='sigmoid', help = 'relu, leaky_relu, celu, exp, sigmoid')
@@ -183,7 +183,7 @@ print("Data generation time: ", timeit.default_timer() - start)
 start = timeit.default_timer()
 # if ./tmp/{data_name}_candidate_pool.pt exists, then load candidate_pool, otherwise, generate candidate_pool
 # if False:
-if os.path.exists('./tmp/' + args.data_name + '_candidate_pool.pt'):
+if os.path.exists('./tmp/' + args.data_name + '_candidate_pool.pt') and args.read_new_tree is False:
     candidate_pool = torch.load('./tmp/' + args.data_name + '_candidate_pool.pt')
     print("candidate pool loaded")
 else:
@@ -194,7 +194,7 @@ print("Initial candidate pool generation time: ", timeit.default_timer() - start
 
 # if ./tmp/{data_name}_p_index.pt exists, then load p_index, otherwise, generate p_index
 # if False:
-if os.path.exists('./tmp/' + args.data_name + '_p_index.pt'):
+if os.path.exists('./tmp/' + args.data_name + '_p_index.pt') and args.read_new_tree is False:
     p_index, p_index_full, p_index2pattern_index,hor_path, ver_path, wire_length_count, via_info, tree_p_index, tree_index_per_candidate, tree_p_index2pattern_index, tree_p_index_full = torch.load('./tmp/' + args.data_name + '_p_index.pt')
 else:
     p_index, p_index_full, p_index2pattern_index,hor_path, ver_path, wire_length_count, via_info, tree_p_index, tree_index_per_candidate, tree_p_index2pattern_index, tree_p_index_full= process_pool(candidate_pool,args.xmax, args.ymax,device = args.device)
@@ -277,11 +277,8 @@ for i in range(args.iter):
 
     # if add_CZ is enabled, we add Z after 20% iterations, and add Z + C after 50% iterations
     if args.add_CZ:
-        if i == (2*update_iteration) or i == (4*update_iteration):
-            if i == (2 * update_iteration):
-                cz_level = 2
-            else:
-                cz_level = 3
+        if i == (4*update_iteration):
+            cz_level = 2
             CZ_result = util.add_CZ(net.p, p_index_full, p_index2pattern_index, hor_path,ver_path,wire_length_count, via_info, tree_index_per_candidate, 
                                     candidate_pool, hor_overflow, ver_overflow, cz_level,args)
             if CZ_result is not None:
@@ -317,7 +314,8 @@ print("best cost: ", best_cost, "overflow cost: ", float(overflow_cost.cpu().det
 if args.read_new_tree is True:
     selected_tree_full_index = util.write_tree_result(RouteNets,tree_p, tree_p_index_full, tree_p_index2pattern_index,args.data_name,write_tree = args.read_new_tree)
     # only pick 2-pin candidates from those picked trees
-    selected_p_full_index = torch.repeat_interleave(selected_tree_full_index, tree_index_per_candidate)
+    # selected_p_full_index = torch.repeat_interleave(selected_tree_full_index, tree_index_per_candidate)
+    selected_p_full_index = selected_tree_full_index[tree_index_per_candidate]
     # set not selected p_index2pattern_index as 0
     p_index2pattern_index[(selected_p_full_index == False).cpu()] = 0
 
