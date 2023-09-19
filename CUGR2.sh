@@ -25,7 +25,7 @@ mkdir $cugr2/DR_result
 echo "Processing CUGR2 First Round... data: $data"
 cd $cugr2/run/
 ./route -lef $benchmark_path/$data/$data.input.lef -def $benchmark_path/$data/$data.input.def -output $benchmark_path/$data/$data.CUGR2.guide -sort 0 > $cugr2/GR_log/$data\_CUGR2.log
-cd $cugr2
-./drcu -lef $benchmark_path/$data/$data.input.lef -def $benchmark_path/$data/$data.input.def -thread 32 -guide $benchmark_path/$data/$data.CUGR2.guide --output $cugr2/DR_result/CUGR2_$data.txt --tat 2000000000 > $cugr2/DR_log/$data\_CUGR2.log
-cd $this_path
-sh run_innovus.sh $data CUGR2
+# cd $cugr2
+# ./drcu -lef $benchmark_path/$data/$data.input.lef -def $benchmark_path/$data/$data.input.def -thread 32 -guide $benchmark_path/$data/$data.CUGR2.guide --output $cugr2/DR_result/CUGR2_$data.txt --tat 2000000000 > $cugr2/DR_log/$data\_CUGR2.log
+# cd $this_path
+# sh run_innovus.sh $data CUGR2

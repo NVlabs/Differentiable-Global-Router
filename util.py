@@ -1297,15 +1297,17 @@ Require:
         Currently, we do not use maze.txt, in our design maze.txt is only used to identify the congested nets. Congested nets will have Z/C shape candidates
         But now, we tend to design an iterative flow, which foucs on congested 2-pin net, rather than the whole net
 """
-def read_new_tree(RouteNets,cugr2_dir_path):
+def read_new_tree(RouteNets,cugr2_dir_path,args):
+    assert(args.tree_file_path is not None)
+    
     NetID2NetIdx = {} # map netID to netIdx of RouteNets
     for netIdx, net in enumerate(RouteNets):
         NetID2NetIdx[net.net_ID] = netIdx
-    CUGR2_p2 = read_tree(os.path.join(cugr2_dir_path,'CUGR2_tree.txt'))
+    CUGR2_p2 = read_tree(os.path.join(cugr2_dir_path,args.tree_file_path + '.CUGR2_NewSort.guide.CUGR2_tree.txt'))
     for net in CUGR2_p2:
         netIdx = NetID2NetIdx[net.net_ID]
         RouteNets[netIdx].pins += net.pins # pins: TreeIdx -> PinIdx
-    DGR_p2 = read_tree(os.path.join(cugr2_dir_path,'dgr_tree.txt'))
+    DGR_p2 = read_tree(os.path.join(cugr2_dir_path,args.tree_file_path + '.FirstRound.guide.dgr_tree.txt'))
     both_congested = 0 # number of nets that are congested in both CUGR2 and DGR
     for net in DGR_p2:
         netIdx = NetID2NetIdx[net.net_ID]

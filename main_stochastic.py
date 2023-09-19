@@ -77,7 +77,7 @@ parser.add_argument('--lr', type=float, default=0.3)
 parser.add_argument('--t', type=float, default=1, help = "temperature scale")
 parser.add_argument('--tree_t', type=float, default=0.9, help = "temperature scale for tree candidates, since we only output one tree, we use 0.85 here")
 parser.add_argument('--iter', type=int, default=300)
-parser.add_argument('--epoch_iter', type=int, default=10, help = "how many iterations for each epoch")
+parser.add_argument('--epoch_iter', type=int, default=1, help = "how many iterations for each epoch")
 parser.add_argument('--act', type=str, default='sigmoid', help = 'relu, leaky_relu, celu, exp, sigmoid')
 parser.add_argument('--weight_decay', type=float, default=0)
 parser.add_argument('--beta1', type=float, default=0.9)
@@ -117,6 +117,7 @@ parser.add_argument('--device', type=int, default=0)
 parser.add_argument('--select_threshold', type=float, default=0.85, help = 
                     "Set a Probability threshold: t, select candidates from lager p to smaller p, until sum of candidate probabilities are larger than t")
 parser.add_argument('--read_new_tree', type=bool, default=False, help ='whether read new tree generated from phase 2 of CUGR2. If true, will read new trees, and those candidates will be used in the framework')
+parser.add_argument('--tree_file_path', type=str, default=None)
 # output_name, default is None
 parser.add_argument('--output_name', type=str, default='output', help = "the name of the output file")
 
@@ -173,7 +174,7 @@ else:
     if args.read_new_tree:
         # args.data_path is removing final /....pt
         cugr2_dir_path = args.data_path[:-len(args.data_path.split('/')[-1])]
-        RouteNets = util.read_new_tree(RouteNets,cugr2_dir_path)
+        RouteNets = util.read_new_tree(RouteNets,cugr2_dir_path,args)
     
 
 
@@ -278,7 +279,7 @@ for i in range(args.iter):
 
     # if add_CZ is enabled, we add Z after 20% iterations, and add Z + C after 50% iterations
     if args.add_CZ:
-        if i == (4*update_iteration):
+        if i == (4*update_iteration) or i == (8*update_iteration):
             cz_level = 2
             CZ_result = util.add_CZ(net.p, p_index_full, p_index2pattern_index, hor_path,ver_path,wire_length_count, via_info, tree_index_per_candidate, 
                                     candidate_pool, hor_overflow, ver_overflow, cz_level,args,results['edge_length'])

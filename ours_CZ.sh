@@ -1,8 +1,8 @@
 # run different parameters for result analysis
 data="${1:-ispd18_test5_metal5}"
-benchmark_path="/scratch/weili3/cu-gr-2/benchmark"
-cugr2="/scratch/weili3/cu-gr-2"
-this_path="/home/weili3/Differentiable-Global-Router"
+benchmark_path=$2
+cugr2=$3
+this_path=$4
 method="CZ"
 echo "Processing Ours w. CZ Round... data: $data"
 python3 main_stochastic.py --data_path $cugr2/run/$data.pt --output_name $method --add_CZ True --epoch_iter 1 
