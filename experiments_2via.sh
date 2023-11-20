@@ -12,5 +12,5 @@ do
     # echo new line
     echo ""
     echo "Now Run data: $data"
-    ./ours_softmax.sh $data $benchmark_path $cugr2 $this_path
+    ./ours_viacostdouble.sh $data $benchmark_path $cugr2 $this_path
 done

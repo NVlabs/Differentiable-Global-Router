@@ -251,16 +251,17 @@ def objective_function(RoutingRegion, hor_path, ver_path,wire_length_count, via_
     via_map,via_count = via_info
     hor_demand = torch.matmul(hor_path,p) # the demand for the horizontal edge, if add_via_in_overflow is False, we only count the wire congestion
     ver_demand = torch.matmul(ver_path,p) # the demand for the vertical edge
-    if add_via_in_overflow:
-        xmax = RoutingRegion.xmax
-        ymax = RoutingRegion.ymax
-        this_via_map = torch.matmul(via_map,p).view(xmax,ymax) # (xmax, ymax)
-        hor_via_map = hor_pin_demand * this_via_map
-        ver_via_map = ver_pin_demand * this_via_map
-        hor_via = ((hor_via_map[:,:-1] + hor_via_map[:,1:]) * args.via_layer).flatten() # /2 because layers are half divided by hor/ver
-        ver_via = ((ver_via_map[:-1,:] + ver_via_map[1:,:]) * args.via_layer).flatten()
-        hor_demand = hor_via + hor_demand
-        ver_demand = ver_via + ver_demand
+    if args.use_ilp_metric is False:
+        if add_via_in_overflow:
+            xmax = RoutingRegion.xmax
+            ymax = RoutingRegion.ymax
+            this_via_map = torch.matmul(via_map,p).view(xmax,ymax) # (xmax, ymax), the approximated via congestion
+            hor_via_map = hor_pin_demand * this_via_map 
+            ver_via_map = ver_pin_demand * this_via_map
+            hor_via = ((hor_via_map[:,:-1] + hor_via_map[:,1:]) * args.via_layer).flatten() # /2 because layers are half divided by hor/ver
+            ver_via = ((ver_via_map[:-1,:] + ver_via_map[1:,:]) * args.via_layer).flatten()
+            hor_demand = hor_via + hor_demand
+            ver_demand = ver_via + ver_demand
 
     hor_total_elements = hor_cap.numel()
     ver_total_elements = ver_cap.numel()

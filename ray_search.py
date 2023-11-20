@@ -13,15 +13,17 @@ from ray.air import session
 def objective_function(config):
     # Variables
     # data = "ispd18_test5_metal5"
-    data = "ispd18_test1"
+    data = "ispd19_test8_metal5"
 
     benchmark_path = "/scratch/weili3/cu-gr-2/benchmark"
     cugr2 = "/scratch/weili3/cu-gr-2"
     this_path = "/home/weili3/Differentiable-Global-Router"
 
     # Execute python3 command
-    subprocess.run(["python", "main.py", "--data_path", os.path.join(cugr2, "run", f"{data}.pt"), "--lr", config['learning_rate'], "--t", config['temperature'], "--via_coeff", config['via_coeff'], 
-                   "--pin_ratio", config['pin_ratio'], "--select_threshold", config['select_threshold']], stdout=open(os.path.join(cugr2, "GR_log", f"{data}_Ours.log"), "w"))
+    # subprocess.run(["python", "main_stochastic.py", "--data_path", os.path.join(cugr2, "run", f"{data}.pt"), "--lr", config['learning_rate'], "--t", config['temperature'], "--via_coeff", config['via_coeff'], 
+    #                "--pin_ratio", config['pin_ratio'], "--select_threshold", config['select_threshold']], stdout=open(os.path.join(cugr2, "GR_log", f"{data}_Ours.log"), "w"))
+    subprocess.run(["python", "main_stochastic.py", "--data_path", os.path.join(cugr2, "run", f"{data}.pt"), "--via_layer", config['via_layer'],
+                     "--select_threshold", config['select_threshold']], stdout=open(os.path.join(cugr2, "GR_log", f"{data}_Ours.log"), "w"))
 
     # Change directory and execute route command
     os.chdir(os.path.join(cugr2, "run"))
@@ -72,10 +74,7 @@ resources=lambda spec: {"gpu": 1} if torch.cuda.is_available() else {"gpu": 0})
 
 # Define the search space
 search_space = {
-    "learning_rate": tune.loguniform(1e-4, 1),
-    "temperature": tune.choice([0.8, 0.85, 0.9, 0.95, 1]),
-    "via_coeff": tune.loguniform(1e-4, 1e2),
-    "pin_ratio": tune.uniform(0.5,1.5),
+    "via_layer": tune.choice([0.5, 1, 1.5, 2, 3]),
     "select_threshold": tune.choice([0.8, 0.85, 0.9, 0.95, 1])
 }
 

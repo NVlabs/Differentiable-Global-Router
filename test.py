@@ -17,8 +17,8 @@ def train_model(config):
     this_path = "/home/weili3/Differentiable-Global-Router"
     os.chdir(this_path)
     # Execute python3 command
-    subprocess.run(["python", "main_stochastic.py", "--data_path", os.path.join(cugr2, "run", f"{data}.pt"), "--lr", str(config['learning_rate']), "--t", str(config['temperature']), "--overflow_coeff", str(config['overflow_coeff']), 
-                    "--weight_decay", str(config['weight_decay']), "--beta1", str(config['beta1']),"--weight_decay", "1" , "--output_name", str(task_id)])
+    subprocess.run(["python", "main_stochastic.py", "--data_path", os.path.join(cugr2, "run", f"{data}.pt"), "--via_layer", str(config['via_layer']), "--select_threshold", str(config['select_threshold']),
+                    "--output_name", str(task_id)])
     # subprocess.run(["python", "main_stochastic.py","--output_name", str(task_id)])
 
     # Change directory and execute route command
@@ -76,19 +76,18 @@ def train_model(config):
 ray.init(ignore_reinit_error=True, num_cpus=int(sys.argv[3]))
 print("ray intialized")
 trainable_with_resources = tune.with_resources(train_model,
-resources=lambda spec: {"gpu": 0.5,"cpu": 1})
+resources=lambda spec: {"gpu": 1,"cpu": 1})
 
 config = {
     # "learning_rate": tune.loguniform(1e-5, 1),
     # "temperature": tune.choice([0.8, 0.85, 0.9, 0.95, 1]),
-    "learning_rate":tune.loguniform(1e-2, 1e1),
-    "temperature": 0.9,
-    "overflow_coeff": 1,
+    # "learning_rate":tune.loguniform(1e-2, 1e1),
+    # "temperature": 0.9,
+    # "overflow_coeff": 1,
     # "select_threshold": tune.choice([0.8, 0.85, 0.9, 0.95, 1]),
-    "weight_decay": tune.choice([0,1e-5,1e-3,1e-2]),
-    "beta1":tune.uniform(0.2, 0.998),
+    "via_layer": tune.choice([0.5, 1, 1.5, 2, 3]),
+    "select_threshold": tune.choice([0.8, 0.85, 0.9, 0.95, 1])
     }
-
 
 tuner = tune.Tuner(
     trainable_with_resources,    

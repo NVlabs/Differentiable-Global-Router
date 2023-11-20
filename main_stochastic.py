@@ -76,7 +76,7 @@ parser.add_argument('--data_path', type=str, default='/scratch/weili3/cu-gr-2/ru
 parser.add_argument('--lr', type=float, default=0.3)
 parser.add_argument('--t', type=float, default=1, help = "temperature scale")
 parser.add_argument('--tree_t', type=float, default=0.9, help = "temperature scale for tree candidates, since we only output one tree, we use 0.85 here")
-parser.add_argument('--iter', type=int, default=300)
+parser.add_argument('--iter', type=int, default=1000)
 parser.add_argument('--epoch_iter', type=int, default=1, help = "how many iterations for each epoch")
 parser.add_argument('--act', type=str, default='sigmoid', help = 'relu, leaky_relu, celu, exp, sigmoid')
 parser.add_argument('--weight_decay', type=float, default=0)
@@ -87,7 +87,7 @@ parser.add_argument('--overflow_coeff', type=float, default=1, help ="500 is alr
 # celu_alpha, default is 2.0
 parser.add_argument('--celu_alpha', type=float, default=2.0)
 parser.add_argument('--act_scale', type=float, default=0.5, help="scale the cap - demand value")
-parser.add_argument('--via_layer', type=float, default=3,help= "how many layers does a via occupy, default is sqrt(num_layer)")
+parser.add_argument('--via_layer', type=float, default=1.5,help= "how many layers does a via occupy = sqrt(num_layer) * args.via_layer")
 parser.add_argument('--use_gumble', type=bool, default=True)
 
 
@@ -114,12 +114,14 @@ parser.add_argument('--add_CZ', type=bool, default=False, help = 'whether add c 
 # framework parameters
 parser.add_argument('--add_via', type=bool, default=True, help="If True, will add via as a demand in overflow cost cal")
 parser.add_argument('--device', type=int, default=0)
-parser.add_argument('--select_threshold', type=float, default=0.85, help = 
+parser.add_argument('--select_threshold', type=float, default=1.0, help = 
                     "Set a Probability threshold: t, select candidates from lager p to smaller p, until sum of candidate probabilities are larger than t")
 parser.add_argument('--read_new_tree', type=bool, default=False, help ='whether read new tree generated from phase 2 of CUGR2. If true, will read new trees, and those candidates will be used in the framework')
 parser.add_argument('--tree_file_path', type=str, default=None)
 # output_name, default is None
 parser.add_argument('--output_name', type=str, default='output', help = "the name of the output file")
+# whether use ilp_metric, default is True, if True, will use ilp_metric from DAC23 paper, which did not consider the influence of vias and pins to the congestion
+parser.add_argument('--use_ilp_metric', type=bool, default=False, help = "whether use ilp_metric from DAC23 paper, which did not consider the influence of vias and pins to the congestion")
 
 args = parser.parse_args()
 args.device = 'cuda:'+str(args.device) if torch.cuda.is_available() else 'cpu'
@@ -153,7 +155,7 @@ else:
     args.hor_first = RoutingRegion3D.hor_first
     args.num_hor_layer = len(RoutingRegion3D.cap_mat_3D[0])
     args.num_ver_layer = len(RoutingRegion3D.cap_mat_3D[1])
-    args.via_layer = float(np.sqrt(num_layer))
+    args.via_layer = float(np.sqrt(num_layer)) * args.via_layer
     RoutingRegion.cap_mat = [torch.stack(RoutingRegion3D.cap_mat_3D[0]).sum(0),torch.stack(RoutingRegion3D.cap_mat_3D[1]).sum(0)]
     RoutingRegion.cap_mat = [RoutingRegion.cap_mat[0] * args.capacity,RoutingRegion.cap_mat[1] * args.capacity]
     results['edge_length'] = [results['edge_length'][1],results['edge_length'][0]] # the hor and ver definitions are different from CUGR2, therefore, we inverse
@@ -161,8 +163,12 @@ else:
     hor_edge_demand,ver_edge_demand,hor_pin_demand, ver_pin_demand = util.get_pin_demand(RouteNets, args,results['layers'], results['edge_length'])
     hor_local_net_demand, ver_local_net_demand = util.get_local_net(RouteNets, args)
 
-    RoutingRegion.cap_mat[0] = RoutingRegion.cap_mat[0] - torch.tensor(hor_edge_demand) * args.pin_ratio - hor_local_net_demand * args.local_net_ratio
-    RoutingRegion.cap_mat[1] = RoutingRegion.cap_mat[1] - torch.tensor(ver_edge_demand) * args.pin_ratio- ver_local_net_demand * args.local_net_ratio
+    RoutingRegion.cap_mat[0] = RoutingRegion.cap_mat[0] - hor_local_net_demand * args.local_net_ratio
+    RoutingRegion.cap_mat[1] = RoutingRegion.cap_mat[1] - ver_local_net_demand * args.local_net_ratio
+    if args.use_ilp_metric is False:
+        # if not use ilp metric, we need to consider pin influence
+        RoutingRegion.cap_mat[0] = RoutingRegion.cap_mat[0] - torch.tensor(hor_edge_demand) * args.pin_ratio 
+        RoutingRegion.cap_mat[1] = RoutingRegion.cap_mat[1] - torch.tensor(ver_edge_demand) * args.pin_ratio
     hor_edge_length = torch.tensor(results['edge_length'][0]).to(args.device).reshape(1,-1)
     ver_edge_length = torch.tensor(results['edge_length'][1]).to(args.device).reshape(-1,1)
     RoutingRegion.to(args.device)
@@ -177,7 +183,7 @@ else:
         RouteNets = util.read_new_tree(RouteNets,cugr2_dir_path,args)
     
 
-
+print("args: ", args)
 print("Data generation time: ", timeit.default_timer() - start)
 
 # For each net, generate a candidate pool, that is
@@ -298,10 +304,10 @@ for i in range(args.iter):
     if i == args.iter - 1:
         max_p, argmax = scatter_max(p,p_index_full)
         current_best_cost = (overflow_cost + wire_length_cost*args.wl_coeff + via_cost*args.via_coeff).cpu().item()
-        util.visualize_result(args.xmax,args.ymax, hor_path, ver_path, p, name=args.data_name +'_'+ str(config["t"]) + '_' + str(config["lr"]),
-                        capacity_mat=RoutingRegion.cap_mat,
-                        caption="cost: " + str(current_best_cost) + " temperature: " + str(temperature) + " lr: " + str(config["lr"]))
-        util.visualize_p(max_p.cpu().detach().numpy(),"s1_p_" + args.data_name)
+        # util.visualize_result(args.xmax,args.ymax, hor_path, ver_path, p, name=args.data_name +'_'+ str(config["t"]) + '_' + str(config["lr"]),
+        #                 capacity_mat=RoutingRegion.cap_mat,
+        #                 caption="cost: " + str(current_best_cost) + " temperature: " + str(temperature) + " lr: " + str(config["lr"]))
+        # util.visualize_p(max_p.cpu().detach().numpy(),"s1_p_" + args.data_name)
 
 train_time = (timeit.default_timer() - start)
             
