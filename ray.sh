@@ -1,3 +1,5 @@
 # run ray hyper-parameters for multiple benchmarks
-# args: data, gpu, # of trials
-python test.py ispd19_test8_metal5 40 2
+# args: data, # of trials
+python test_lr.py ispd18_test5_metal5 40 4
+python test_opt.py ispd18_test5_metal5 40 4
+python test_scheduler.py ispd18_test5_metal5 40 4

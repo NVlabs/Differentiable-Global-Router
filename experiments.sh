@@ -1,7 +1,7 @@
 #!/bin/bash
 # data_list=("ispd19_test8_metal5" "ispd19_test9_metal5" "ispd19_test7" "ispd19_test8" "ispd19_test9")
-conda activate 118
-data_list=("ispd18_test5_metal5" "ispd18_test8_metal5" "ispd18_test10_metal5" "ispd19_test7_metal5" "ispd19_test8_metal5" "ispd19_test9_metal5")
+data_list=("ispd18_test5_metal5")
+# data_list=("ispd18_test5_metal5" "ispd18_test8_metal5" "ispd18_test10_metal5" "ispd19_test7_metal5" "ispd19_test8_metal5" "ispd19_test9_metal5")
 # data_list=("ispd18_test5_metal5" "ispd18_test8_metal5" "ispd18_test10_metal5" "ispd19_test7_metal5")
 
 # data_list=("bsg")
@@ -31,4 +31,4 @@ do
     # ./ours_CZ.sh $data $benchmark_path $cugr2 $this_path
 done
 # print final innovus result
-python read_stat.py $benchmark_path
+# python read_stat.py $benchmark_path

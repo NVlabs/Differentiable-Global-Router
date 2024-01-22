@@ -768,8 +768,8 @@ Require:
 Return:
     hor_edge_demand: (xmax, ymax - 1), the edge demand by physical pins
     ver_edge_demand: (xmax - 1, ymax), the edge demand by physical pins
-    X5_hor: (xmax, ymax), the horizontal demand from EACH physical pin at each gcell. Then value is an approximated per-layer demand
-    X5_ver: (xmax, ymax), the vertical demand from EACH physical pin at each gcell. Then value is an approximated per-layer demand 
+    hor_pin_demand: (xmax, ymax), the horizontal demand from EACH physical pin at each gcell. Then value is an approximated per-layer demand, e.g. hor_pin_demand[i,j] = 2, means, if there is a pin at (i,j), its influence to the congestion will be 2.
+    ver_pin_demand: (xmax, ymax), the vertical demand from EACH physical pin at each gcell. Then value is an approximated per-layer demand 
 """
 def get_pin_demand(nets, args, layer_info, edge_length):
 

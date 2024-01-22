@@ -33,11 +33,13 @@ import os
 import numpy as np
 import sys
 # fix the seed
-torch.manual_seed(0)
-np.random.seed(0)
-torch.backends.cudnn.deterministic = True
-import random
-random.seed(0)
+
+# torch.manual_seed(0)
+# np.random.seed(0)
+# torch.backends.cudnn.deterministic = True
+# import random
+# random.seed(0)
+
 old_out = sys.stdout
 class StAmpedOut:
     """Stamped stdout."""
@@ -74,6 +76,8 @@ parser.add_argument('--data_path', type=str, default='/scratch/weili3/cu-gr-2/ru
 
 # DL hyperparameters
 parser.add_argument('--lr', type=float, default=0.3)
+parser.add_argument('--optimizer', type=str, default='adam')
+parser.add_argument('--scheduler', type=str, default='constant')
 parser.add_argument('--t', type=float, default=1, help = "temperature scale")
 parser.add_argument('--tree_t', type=float, default=0.9, help = "temperature scale for tree candidates, since we only output one tree, we use 0.85 here")
 parser.add_argument('--iter', type=int, default=1000)
@@ -87,7 +91,7 @@ parser.add_argument('--overflow_coeff', type=float, default=1, help ="500 is alr
 # celu_alpha, default is 2.0
 parser.add_argument('--celu_alpha', type=float, default=2.0)
 parser.add_argument('--act_scale', type=float, default=0.5, help="scale the cap - demand value")
-parser.add_argument('--via_layer', type=float, default=1.5,help= "how many layers does a via occupy = sqrt(num_layer) * args.via_layer")
+parser.add_argument('--via_layer', type=float, default=1.5,help= "how many layers does a via occupy? This is calculated by sqrt(num_layer) * args.via_layer")
 parser.add_argument('--use_gumble', type=bool, default=True)
 
 
@@ -99,7 +103,7 @@ parser.add_argument('--z_step', type=int, default=3, help =
                     "If we have n possible z-shape turing points, then we pick turning point every z_step, which will generate int(n/(z_step)) z-shape routing candidates")
 parser.add_argument('--max_z', type=int, default=10, help = 
                     "the maximum number of z shape routing candidates, if we have more than max_z candidates, we will increase the z_step until we have less than max_z candidates")
-# c step, default is 2
+# c step, default is 2 
 parser.add_argument('--c_step', type=int, default=3, help = 
                     "If we have n possible c-shape turing points, then we pick turning point every c_step, which will generate int(n/(c_step)) c-shape routing candidates")
 parser.add_argument('--max_c', type=int, default=20, help = 
@@ -202,7 +206,7 @@ print("Initial candidate pool generation time: ", timeit.default_timer() - start
 # if ./tmp/{data_name}_p_index.pt exists, then load p_index, otherwise, generate p_index
 # if False:
 if os.path.exists('./tmp/' + args.data_name + '_p_index.pt') and args.read_new_tree is False:
-    p_index, p_index_full, p_index2pattern_index,hor_path, ver_path, wire_length_count, via_info, tree_p_index, tree_index_per_candidate, tree_p_index2pattern_index, tree_p_index_full = torch.load('./tmp/' + args.data_name + '_p_index.pt')
+    p_index, p_index_full, p_index2pattern_index,hor_path, ver_path, wire_length_count, via_info, tree_p_index, tree_index_per_candidate, tree_p_index2pattern_index, tree_p_index_full = torch.load('./tmp/' + args.data_name + '_p_index.pt', map_location = args.device)
 else:
     p_index, p_index_full, p_index2pattern_index,hor_path, ver_path, wire_length_count, via_info, tree_p_index, tree_index_per_candidate, tree_p_index2pattern_index, tree_p_index_full= process_pool(candidate_pool,args.xmax, args.ymax,device = args.device)
     torch.save((p_index, p_index_full, p_index2pattern_index,hor_path, ver_path, wire_length_count, via_info, tree_p_index, tree_index_per_candidate, tree_p_index2pattern_index, tree_p_index_full), './tmp/' + args.data_name + '_p_index.pt')
@@ -228,7 +232,29 @@ back_time = 0 # time to back propagate
 start = timeit.default_timer()
 
 net = model.Net(p_index,pattern_level = args.pattern_level,device= args.device,use_gumble = args.use_gumble, tree_p_index = tree_p_index, tree_index_per_candidate = tree_index_per_candidate).to(args.device)
-optimizer = torch.optim.Adam(net.parameters(), weight_decay = args.weight_decay, betas =(args.beta1,0.999),lr=config["lr"])
+if args.optimizer == 'adam':
+    optimizer = torch.optim.Adam(net.parameters(), weight_decay = args.weight_decay, betas =(args.beta1,0.999),lr=config["lr"])
+elif args.optimizer == 'sgd':
+    optimizer = torch.optim.SGD(net.parameters(), weight_decay = args.weight_decay, lr=config["lr"])
+elif args.optimizer == 'rmsprop':
+    optimizer = torch.optim.RMSprop(net.parameters(), weight_decay = args.weight_decay, lr=config["lr"])
+elif args.optimizer == 'adagrad':
+    optimizer = torch.optim.Adagrad(net.parameters(), weight_decay = args.weight_decay, lr=config["lr"])
+else:
+    raise NotImplementedError("Optimizer not implemented")
+
+if args.scheduler == 'step':
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=int(args.iter/10), gamma=0.8)
+elif args.scheduler == 'cosine':
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100, eta_min=0.0001)
+elif args.scheduler == 'linear':
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda epoch: 1 - epoch / args.iter)
+elif args.scheduler == 'constant':
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda epoch: 1)
+else:
+    raise NotImplementedError("Scheduler not implemented")
+# elif args.scheduler == 'plateau':
+#     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10, verbose=False, threshold=0.0001, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08)
 cost_list = []
 current_best_cost = 1e10
 current_best_continue_cost = 1e10
@@ -277,6 +303,7 @@ for i in range(args.iter):
         optimizer.step()
         optimizer.zero_grad()
         back_time += timeit.default_timer() - back_start
+    scheduler.step()
 
     # print("args.iteration: ", i, "overflow_cost: ", overflow_cost.cpu().item())
     cost_list.append(float(total_cost.detach().cpu()))
@@ -296,7 +323,16 @@ for i in range(args.iter):
                 net.p_full_index = p_index_full
                 if net.tree_p_index is not None:
                     net.tree_index_per_candidate = tree_index_per_candidate
-                optimizer = torch.optim.Adam(net.parameters(), lr=config["lr"])
+                if args.optimizer == 'adam':
+                    optimizer = torch.optim.Adam(net.parameters(), weight_decay = args.weight_decay, betas =(args.beta1,0.999),lr=config["lr"])
+                elif args.optimizer == 'sgd':
+                    optimizer = torch.optim.SGD(net.parameters(), weight_decay = args.weight_decay, lr=config["lr"])
+                elif args.optimizer == 'rmsprop':
+                    optimizer = torch.optim.RMSprop(net.parameters(), weight_decay = args.weight_decay, lr=config["lr"])
+                elif args.optimizer == 'adagrad':
+                    optimizer = torch.optim.Adagrad(net.parameters(), weight_decay = args.weight_decay, lr=config["lr"])
+                else:
+                    raise NotImplementedError("Optimizer not implemented")
                 via_info = (via_map,via_count)
 
     if cost_list[-1] < current_best_continue_cost:
