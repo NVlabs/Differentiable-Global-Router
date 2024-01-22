@@ -70,7 +70,7 @@ parser.add_argument('--max_pin_num', type=int, default=3)
 parser.add_argument('--net_size', type=int, default=10)
 
 # data_path, str, the path for contest benchmark, when value is None, then, use random data
-parser.add_argument('--data_path', type=str, default='/scratch/weili3/cu-gr-2/run/ispd18_test5_metal5.pt')
+parser.add_argument('--data_path', type=str, default='/scratch/weili3/cu-gr-2/run/bsg.pt')
 
 # DL hyperparameters
 parser.add_argument('--lr', type=float, default=0.3)

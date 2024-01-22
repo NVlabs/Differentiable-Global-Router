@@ -35,10 +35,10 @@ for data_name in data_names:
     print("data_name: ", data_name)
     results[data_name] = {}
     os.chdir('{cugr2_dir}/run/'.format(cugr2_dir = cugr2_dir))
-    os.system('rm {cugr2_dir}/benchmark/{data_name}/{data_name}.output2'.format(cugr2_dir = cugr2_dir, data_name = data_name))
-    os.system('./route -lef {cugr2_dir}/benchmark/{data_name}/{data_name}.input.lef -def {cugr2_dir}/benchmark/{data_name}/{data_name}.input.def -output {cugr2_dir}/benchmark/{data_name}/{data_name}.output2 -threads 1 -sort 1'.format(cugr2_dir = cugr2_dir, data_name = data_name))
+    os.system('rm {benchmark_path}/{data_name}/{data_name}.output2'.format(benchmark_path = benchmark_path, data_name = data_name))
+    os.system('./route -lef {benchmark_path}/{data_name}/{data_name}.input.lef -def {benchmark_path}/{data_name}/{data_name}.input.def -output {benchmark_path}/{data_name}/{data_name}.output2 -threads 1 -sort 1'.format(benchmark_path = benchmark_path, data_name = data_name))
     # wait until the output file is generated
-    while not os.path.exists('{cugr2_dir}/benchmark/{data_name}/{data_name}.output2'.format(cugr2_dir = cugr2_dir, data_name = data_name)):
+    while not os.path.exists('{benchmark_path}/{data_name}/{data_name}.output2'.format(benchmark_path = benchmark_path, data_name = data_name)):
         pass
     print('Processing data: ', data_name)
     # read 'layout.txt'

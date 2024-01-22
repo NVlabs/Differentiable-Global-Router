@@ -4,8 +4,8 @@ conda activate 118
 data_list=("ispd18_test5" "ispd18_test5_metal5" "ispd18_test8_metal5" "ispd18_test10_metal5" "ispd19_test7_metal5" "ispd19_test8_metal5" "ispd19_test9_metal5")
 data_list=("ispd18_test4" )
 # data_list=("ispd18_test5" "ispd18_test8" "ispd18_test9" "ispd18_test10" "ispd18_test5_metal5" "ispd18_test8_metal5" "ispd18_test10_metal5")
-# data_list=("ispd18_test1" "ispd18_test2" "ispd18_test3" "ispd18_test4" "ispd18_test5" "ispd18_test6" "ispd18_test7" "ispd18_test8" "ispd18_test9" "ispd18_test10")
-data_list=("ispd18_test1" "ispd18_test2" "ispd18_test3" "ispd18_test4")
+data_list=("ispd18_test8" "ispd18_test10" "ispd19_test7" "ispd19_test8" "ispd19_test9")
+# data_list=("ispd18_test1" "ispd18_test2" "ispd18_test3" "ispd18_test4")
 this_path="/home/weili3/Differentiable-Global-Router" # # DGR path
 benchmark_path="/scratch/weili3/cu-gr-2/benchmark"
 cugr2="/scratch/weili3/cu-gr-2"
@@ -16,7 +16,7 @@ do
     # echo new line
     echo ""
     echo "Now Run data: $data"
-    ./ours_NoVia.sh $data $benchmark_path $cugr2 $this_path
+    ./ours_oldSort.sh $data $benchmark_path $cugr2 $this_path
     # echo "No via result run, now run w. via (original one) but the bug is fixed now..."
     # cd $this_path
     # ./ours.sh $data $benchmark_path $cugr2 $this_path

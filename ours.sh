@@ -5,7 +5,7 @@ cugr2=$3
 this_path=$4
 method="Ours"
 echo "Processing Our First Round... data: $data"
-python3 main_stochastic.py --data_path $cugr2/run/$data.pt --output_name $method
+# python3 main_stochastic.py --data_path $cugr2/run/$data.pt --output_name $method
 cd $cugr2/run/
 ./route -lef $benchmark_path/$data/$data.input.lef -def $benchmark_path/$data/$data.input.def -sort 0 -output $benchmark_path/$data/$data.$method.guide -dgr $this_path/CUGR2_guide/CUgr_$data\_$method.txt > $cugr2/GR_log/$data\_$method.log
 # cd $cugr2
