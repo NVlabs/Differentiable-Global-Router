@@ -18,7 +18,6 @@
 The main script for the back-propagation algorithm
 """
 import torch
-import data
 from data import random_data, process_pool,routing_region
 import util
 # from ilp import LP_data_prep, solve_by_lp
@@ -114,11 +113,11 @@ parser.add_argument('--select_threshold', type=float, default=0.9, help =
 parser.add_argument('--read_new_tree', type=bool, default=False, help ='whether read new tree generated from phase 2 of CUGR2. If true, will read new trees, and those candidates will be used in the framework')
 
 args = parser.parse_args()
-args.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+args.device = 'cuda:2' if torch.cuda.is_available() else 'cpu'
 
 
 # set CUDA device as 0 
-CUDA_VISIBLE_DEVICES=0
+CUDA_VISIBLE_DEVICES=2
 start = timeit.default_timer()
 # if data_path is None, then we use random generated data
 assert args.data_path is not None, "Random data is not used now"
@@ -163,7 +162,7 @@ start = timeit.default_timer()
 # if ./tmp/{data_name}_candidate_pool.pt exists, then load candidate_pool, otherwise, generate candidate_pool
 # if False:
 if os.path.exists('./tmp/' + args.data_name + '_candidate_pool.pt'):
-    candidate_pool = torch.load('./tmp/' + args.data_name + '_candidate_pool.pt')
+    candidate_pool = torch.load('./tmp/' + args.data_name + '_candidate_pool.pt', map_location=args.device)
     print("candidate pool loaded")
 else:
     candidate_pool = util.get_initial_candidate_pool(RouteNets, args.xmax, args.ymax, device = args.device, pattern_level = args.pattern_level, max_z = args.max_z, z_step = args.z_step,c_step = args.c_step, max_c= args.max_c, max_c_out_ratio = args.max_c_out_ratio)
@@ -174,7 +173,7 @@ print("Initial candidate pool generation time: ", timeit.default_timer() - start
 # if ./tmp/{data_name}_p_index.pt exists, then load p_index, otherwise, generate p_index
 # if False:
 if os.path.exists('./tmp/' + args.data_name + '_p_index.pt'):
-    p_index, p_index_full, p_index2pattern_index,hor_path, ver_path, wire_length_count, via_info, tree_p_index, tree_index_per_candidate, tree_p_index2pattern_index, tree_p_index_full = torch.load('./tmp/' + args.data_name + '_p_index.pt')
+    p_index, p_index_full, p_index2pattern_index,hor_path, ver_path, wire_length_count, via_info, tree_p_index, tree_index_per_candidate, tree_p_index2pattern_index, tree_p_index_full = torch.load('./tmp/' + args.data_name + '_p_index.pt', map_location=args.device)
 else:
     p_index, p_index_full, p_index2pattern_index,hor_path, ver_path, wire_length_count, via_info, tree_p_index, tree_index_per_candidate, tree_p_index2pattern_index, tree_p_index_full= process_pool(candidate_pool,args.xmax, args.ymax,device = args.device)
     torch.save((p_index, p_index_full, p_index2pattern_index,hor_path, ver_path, wire_length_count, via_info, tree_p_index, tree_index_per_candidate, tree_p_index2pattern_index, tree_p_index_full), './tmp/' + args.data_name + '_p_index.pt')

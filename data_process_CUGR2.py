@@ -22,7 +22,6 @@ Saved data results:
 import data
 import os
 import torch
-import pickle
 import sys
 
 cugr2_dir = sys.argv[1] 
