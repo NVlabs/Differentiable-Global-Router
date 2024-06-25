@@ -85,7 +85,7 @@ config = {
     # "overflow_coeff": 1,
     # "select_threshold": tune.choice([0.8, 0.85, 0.9, 0.95, 1]),
     # "via_layer": tune.choice([0.5, 1, 1.5, 2, 3]),
-    "scheduler": tune.choice(['step', 'cosine', 'linear']),
+    "scheduler": tune.choice(['step', 'cosine', 'constant','restart']),
     }
 
 tuner = tune.Tuner(

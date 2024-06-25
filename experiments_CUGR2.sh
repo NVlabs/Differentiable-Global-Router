@@ -2,7 +2,8 @@
 # data_list=("ispd19_test8_metal5" "ispd19_test9_metal5" "ispd19_test7" "ispd19_test8" "ispd19_test9")
 conda activate 118
 # data_list=("ispd18_test5" "ispd18_test5_metal5" "ispd18_test8_metal5" "ispd18_test10_metal5" "ispd19_test7_metal5" "ispd19_test8_metal5" "ispd19_test9_metal5")
-data_list=("ispd18_test5_metal5")
+# data_list=("ispd18_test5_metal5")
+data_list=("ispd18_test5")
 # data_list=("ispd18_test5" "ispd18_test8" "ispd18_test10" "ispd19_test7" "ispd19_test8" "ispd19_test9")
 # data_list=("ispd18_test5" "ispd18_test8" "ispd18_test9" "ispd18_test10" "ispd18_test5_metal5" "ispd18_test8_metal5" "ispd18_test10_metal5")
 this_path="/home/weili3/Differentiable-Global-Router" # # DGR path

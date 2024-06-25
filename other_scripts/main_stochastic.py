@@ -76,7 +76,7 @@ parser.add_argument('--data_path', type=str, default='/scratch/weili3/cu-gr-2/ru
 
 # DL hyperparameters
 parser.add_argument('--lr', type=float, default=0.3)
-parser.add_argument('--optimizer', type=str, default='adam')
+parser.add_argument('--optimizer', type=str, default='rmsprop')
 parser.add_argument('--scheduler', type=str, default='constant')
 parser.add_argument('--t', type=float, default=1, help = "temperature scale")
 parser.add_argument('--tree_t', type=float, default=0.9, help = "temperature scale for tree candidates, since we only output one tree, we use 0.85 here")
@@ -246,11 +246,13 @@ else:
 if args.scheduler == 'step':
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=int(args.iter/10), gamma=0.8)
 elif args.scheduler == 'cosine':
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100, eta_min=0.0001)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.iter, eta_min=0.0001)
 elif args.scheduler == 'linear':
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda epoch: 1 - epoch / args.iter)
 elif args.scheduler == 'constant':
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda epoch: 1)
+elif args.scheduler == 'restart':
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=int(args.iter/10), T_mult=1, eta_min=0.0001)
 else:
     raise NotImplementedError("Scheduler not implemented")
 # elif args.scheduler == 'plateau':
