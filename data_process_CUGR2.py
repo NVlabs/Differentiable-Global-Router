@@ -22,7 +22,6 @@ Saved data results:
 import data
 import os
 import torch
-import pickle
 
 cugr2_dir = '/scratch/weili3/cu-gr-2'
 benchmark_path = os.path.join(cugr2_dir, "benchmark")
