@@ -73,6 +73,7 @@ Require:
     turning: Tuple(int,int), turning point coordinate, NOTE either turning[0] == small_x or turning[1] == small_y
     xmax: int, x max of the routing region
     ymax: int, y max of the routing region
+    edge_length: list of two arrays, edge_length[0] is the length of horizontal edges, edge_length[1] is the length of vertical edges
 Return:
     a Tuple including follows:
     2. path_length (wirelength)
@@ -84,7 +85,7 @@ Return:
         is_hor, tensor (edge_num), bool, whether the edge is horizontal
     5. seg_info repeats: tensor, (segment), each element is the number of the edge of the segment
 """
-def z_pattern_routing(pin: Pin, parent_pin: Pin, turning: Tuple[int,int], xmax: int, ymax:int):
+def z_pattern_routing(pin: Pin, parent_pin: Pin, turning: Tuple[int,int], xmax: int, ymax:int,edge_length):
     # we start from the top pin, (the pin with smaller x coordinate, i.e., top rows)
     small_x = pin.x if pin.x < parent_pin.x else parent_pin.x
     large_x = pin.x if pin.x > parent_pin.x else parent_pin.x
@@ -94,7 +95,8 @@ def z_pattern_routing(pin: Pin, parent_pin: Pin, turning: Tuple[int,int], xmax: 
     assert(turning[0] == small_x or turning[1] == small_y)
     is_x_turing = True if turning[0] == small_x else False # is_x_turing means the y corrdinate of turning point is different with both pins
     if is_x_turing:
-        path_length = abs(pin.y - turning[1]) + abs(parent_pin.y - turning[1]) + abs(pin.x - parent_pin.x)
+        path_length = get_physical_length(edge_length, 1, pin.y, turning[1]) + get_physical_length(edge_length, 1, turning[1], parent_pin.y) + get_physical_length(edge_length, 0, pin.x, parent_pin.x)
+        # path_length = abs(pin.y - turning[1]) + abs(parent_pin.y - turning[1]) + abs(pin.x - parent_pin.x)
         # step 1, fixed pin x, y from pin y to turning y
         edges1,is_hor1, edge_num1 = get_edge_info(pin.x, pin.x, pin.y, turning[1])
         # step 2, fixed pin y, x from pin x to parent pin x
@@ -102,7 +104,8 @@ def z_pattern_routing(pin: Pin, parent_pin: Pin, turning: Tuple[int,int], xmax: 
         # step 3, fixed parent x, y from parent pin y to turning y
         edges3,is_hor3, edge_num3 = get_edge_info(parent_pin.x, parent_pin.x, turning[1], parent_pin.y)
     else:
-        path_length = abs(pin.x - turning[0]) + abs(parent_pin.x - turning[0]) + abs(pin.y - parent_pin.y)
+        path_length = get_physical_length(edge_length, 0, pin.x, turning[0]) + get_physical_length(edge_length, 0, turning[0], parent_pin.x) + get_physical_length(edge_length, 1, pin.y, parent_pin.y)
+        # path_length = abs(pin.x - turning[0]) + abs(parent_pin.x - turning[0]) + abs(pin.y - parent_pin.y)
         # step 1, fixed pin y, x from pin x to turning x
         edges1,is_hor1, edge_num1 = get_edge_info(pin.x, turning[0], pin.y, pin.y)
         # step 2, fixed pin x, y from pin y to parent pin y
@@ -115,6 +118,16 @@ def z_pattern_routing(pin: Pin, parent_pin: Pin, turning: Tuple[int,int], xmax: 
     turning_point = np.array([[pin.x,parent_pin.x],[turning[1],turning[1]]]) if is_x_turing else np.array([[turning[0],turning[0]],[pin.y,parent_pin.y]])
     return (path_length, turning_point, (edge_idx, is_hor), seg_idx)
 
+"""
+Get physical length of the edge
+Require:
+    edge_length: list of two arrays, edge_length[0] is the length of horizontal edges, edge_length[1] is the length of vertical edges
+    dim: int, 0 for horizontal, 1 for vertical
+    idx1: int, the start idx
+    idx2: int, the end idx (idx1 not neccessarily smaller than idx2)
+"""
+def get_physical_length(edge_length, dim, idx1,idx2):
+    return np.sum(edge_length[dim][min(idx1, idx2):max(idx1, idx2)])
 
 
 """
@@ -125,6 +138,7 @@ Require:
     parent_pin: parent Pin object
     xmax: int, x max of the routing region
     ymax: int, y max of the routing region
+    edge_length: list of two arrays, edge_length[0] is the length of horizontal edges, edge_length[1] is the length of vertical edges
     (opt) pattern_level: 1 only l-shape, 2 add z shape 3 add c shape shape
     (opt) z_step: If we have n possible z-shape turing points, (n = abs(pin.x - parent_pin.x) + abs(pin.y - parent_pin.y) - 2),
                     then we pick turning point every z_step, which will generate int(n/(z_step)) z-shape routing candidates
@@ -144,12 +158,12 @@ return: list of routing candidates (two l-shape routing)
             is_hor, tensor (edge_num), bool, whether the edge is horizontal
         5. seg_info repeats: tensor, (segment), each element is the number of the edge of the segment
 """
-def two_pin_routing(pin, parent_pin, xmax, ymax, pattern_level=2, z_step=4, max_z=10, c_step = 2, max_c= 10, max_c_out_ratio = 1):
+def two_pin_routing(pin, parent_pin, xmax, ymax, edge_length, pattern_level=2, z_step=4, max_z=10, c_step = 2, max_c= 10, max_c_out_ratio = 1):
     x_width = abs(pin.x - parent_pin.x)
     y_width = abs(pin.y - parent_pin.y)
     if pin.x == parent_pin.x:
         # 2. path_length
-        path_length = y_width
+        path_length = get_physical_length(edge_length, 1, pin.y, parent_pin.y)
         # 3. turning_point
         turning_point = np.empty((2,0))
         # 4. edge_info, edge_idx: (2, edge_num), the (x, y) index of the edge
@@ -158,7 +172,7 @@ def two_pin_routing(pin, parent_pin, xmax, ymax, pattern_level=2, z_step=4, max_
     elif pin.y == parent_pin.y:
         # vertical
         # 2. path_length
-        path_length = x_width
+        path_length = get_physical_length(edge_length, 0, pin.x, parent_pin.x)
         # 3. turning_point
         turning_point = np.empty((2,0))
         # 4. edge_info
@@ -168,7 +182,7 @@ def two_pin_routing(pin, parent_pin, xmax, ymax, pattern_level=2, z_step=4, max_
         result = []
         # 1. L-shape routing, opt1 goes through child's y first, opt2 goes through parent's y first
         # 1.2. path_length
-        path_length = x_width + y_width
+        path_length = get_physical_length(edge_length, 0, pin.x, parent_pin.x) + get_physical_length(edge_length, 1, pin.y, parent_pin.y)
         # 1.3. turning_point
         turning_point1 = np.array([[parent_pin.x],[pin.y]])
         turning_point2 = np.array([[pin.x],[parent_pin.y]])
@@ -205,7 +219,7 @@ def two_pin_routing(pin, parent_pin, xmax, ymax, pattern_level=2, z_step=4, max_
                         assert turning_y < max(pin.y, parent_pin.y)
                     else:
                         turning_y = min(pin.y, parent_pin.y)
-                    single_z_result = z_pattern_routing(pin, parent_pin, (turning_x, turning_y), xmax, ymax)
+                    single_z_result = z_pattern_routing(pin, parent_pin, (turning_x, turning_y), xmax, ymax, edge_length)
                     result.append(single_z_result)
         
     # C routing, even for straight line, we have to consider C routing
@@ -250,7 +264,7 @@ def two_pin_routing(pin, parent_pin, xmax, ymax, pattern_level=2, z_step=4, max_
                     assert turning_x < xmax
                 else:
                     assert False
-                single_c_result = z_pattern_routing(pin, parent_pin, (turning_x, turning_y), xmax, ymax)
+                single_c_result = z_pattern_routing(pin, parent_pin, (turning_x, turning_y), xmax, ymax, edge_length)
                 result.append(single_c_result)
     return result
 
@@ -262,6 +276,7 @@ Require:
     ymax: int, y max of the routing region
     pattern_level: int, the level of pattern routing: 1 only l-shape, 2 add z shape 3 add monotonic shape
     max_z: int, the maximum number of z shape routing candidates
+    edge_length: edge_length[0] horizontal edge_length, edge_length[1] vertical edge_length
 return:
     candidate_pool: list of candidate pool for each net
         candidate_pool[i][j][k][1][m] is the i_th net, j_th topology, k_th 2-pin net (connects pinID k to its parent pin), m_th candidate
@@ -277,8 +292,9 @@ return:
             5. seg_info repeats: tensor, (segment), each element is the number of the edge of the segment
 
 """
-def get_initial_candidate_pool(nets: List[Net],xmax: int, ymax: int, device: str, pattern_level = 2, max_z = 10, z_step = 4,c_step = 2, max_c= 10, max_c_out_ratio = 1):
+def get_initial_candidate_pool(nets: List[Net],xmax: int, ymax: int, device: str, edge_length, pattern_level = 2, max_z = 10, z_step = 4,c_step = 2, max_c= 10, max_c_out_ratio = 1):
     candidate_pool = []
+    edge_length = [edge_length[0].cpu().numpy(), edge_length[1].cpu().numpy()]
     for netIdx,net in enumerate(nets):
         candidate_pool.append([])
         num_tree = len(net.pins)
@@ -290,7 +306,7 @@ def get_initial_candidate_pool(nets: List[Net],xmax: int, ymax: int, device: str
                 if pin.parent_pin == -1 or pin.parent_pin == None:
                     candidate_pool[-1][-1][-1] = []
                     continue
-                candidate_pool[-1][-1][-1] = [(pin,net.pins[tree][pin.parent_pin]),two_pin_routing(pin, net.pins[tree][pin.parent_pin], xmax, ymax, z_step = z_step,pattern_level = pattern_level, max_z = max_z, c_step = c_step, max_c= max_c, max_c_out_ratio = max_c_out_ratio)]
+                candidate_pool[-1][-1][-1] = [(pin,net.pins[tree][pin.parent_pin]),two_pin_routing(pin, net.pins[tree][pin.parent_pin], xmax, ymax, edge_length,z_step = z_step,pattern_level = pattern_level, max_z = max_z, c_step = c_step, max_c= max_c, max_c_out_ratio = max_c_out_ratio)]
     return candidate_pool
 
 """
@@ -744,25 +760,106 @@ def write(f,x,y,x_min,x_max, y_min,y_max,this_layer,total_num_layer = 9, range_n
         write_one_layer(f,x,y,x_min,x_max, y_min,y_max,start_layer + i)
 
 """
-To better estimate the via cost, we need to set the pin_density for each pin location.
+To better estimate the overflow cost, we need to set the influence by each physical pin.
+NOTE: steiner points here are not considered, instead, it is related with tree stucture.
+Require:
+    layer_info: the layer information, read from CUGR2
+    edge_length: edge_length[0] is the horizontal edge length. shape (ymax - 1)
 Return:
-    pin_density: a 2d array, pin_density[x][y] = # of pins at (x,y)
-    low_pin_penalty: if the pin layer start from 0 (metal1), we multiply the pin_density by low_pin_penalty
+    hor_edge_demand: (xmax, ymax - 1), the edge demand by physical pins
+    ver_edge_demand: (xmax - 1, ymax), the edge demand by physical pins
+    hor_pin_demand: (xmax, ymax), the horizontal demand from EACH physical pin at each gcell. Then value is an approximated per-layer demand, e.g. hor_pin_demand[i,j] = 2, means, if there is a pin at (i,j), its influence to the congestion will be 2.
+    ver_pin_demand: (xmax, ymax), the vertical demand from EACH physical pin at each gcell. Then value is an approximated per-layer demand 
 """
-def get_pin_density(nets, xmax, ymax, low_pin_penalty = 1):
-    pin_density = np.zeros((xmax,ymax))
+def get_pin_demand(nets, args, layer_info, edge_length):
+
+    pin_density = np.zeros((args.num_layer, args.xmax,args.ymax))
+    layer2number = {}
     for net in nets:
-        # should be changed if the steiner tree is changed
-        for pin in net.pins[0]:
-            if pin.is_steiner is True:
-                pin_density[pin.x][pin.y] += 2 # default steiner layer is 2
-            else:
-                this_density = pin.physical_pin_layers[1] - pin.physical_pin_layers[0]
-                assert(this_density >= 0)
-                if pin.physical_pin_layers[0] <= 2:
-                    this_density *= low_pin_penalty
-                pin_density[pin.x][pin.y] += this_density
-    return pin_density
+        for pin in net.pins[0]: # physical pins for all trees are the same. So we only need pick net.pins[0] (the first tree candidate)
+            # skip steiner point if we have multiple trees (since stenier points might be different for different trees)
+            if pin.is_steiner is False or args.read_new_tree is False:
+                for layer_idx in range(pin.physical_pin_layers[0],pin.physical_pin_layers[1] + 1):
+                    real_layer_idx = layer_idx - 1 # Metal layer 0 is not used in routing.
+                    if real_layer_idx < 0:
+                        continue
+                    pin_density[real_layer_idx,pin.x,pin.y] += 1
+                if pin.is_steiner is False:
+                    this_density = pin.physical_pin_layers[1] - pin.physical_pin_layers[0] + 1
+                    if this_density not in layer2number.keys():
+                        layer2number[this_density] = 1
+                    else:
+                        layer2number[this_density] += 1
+                    assert(this_density >= 0)
+    print("layer_number statistics: {}".format(layer2number))
+
+    # hor_layer_indicator[i] = True if the i_th layer is horizontal
+    hor_layer_indicator = np.zeros((args.num_layer),dtype = bool)
+    hor_layer_indicator[::2] = True
+    if args.hor_first is False:
+        hor_layer_indicator = np.invert(hor_layer_indicator)
+    
+    layer_min_length = np.array([layer_info[i]['layerMinLength'] for i in range(args.num_layer)])
+
+    # the following X are for calcuilating pin demand for edge
+    # hor_X2 = padding 0 on the left and right of edge_length[0]
+    hor_X2 = np.zeros((edge_length[0].shape[0] + 2)) # ymax + 1
+    hor_X2[1:-1] = edge_length[0] 
+    # hor_X3 = hor_X2[1:] + hor_X2[:-1]
+    hor_X3 = np.zeros((edge_length[0].shape[0] + 1)) # ymax
+    hor_X3 = hor_X2[1:]
+    hor_X3 += hor_X2[:-1]
+    hor_layer_min_length = layer_min_length[hor_layer_indicator]
+    # hor_X4 = hor_layer_min_length/hor_X3, this is a broadcast, and the shape is (hor_L, ymax)
+    hor_X4 = hor_layer_min_length.reshape(-1, 1) / hor_X3.reshape(1, -1)
+    # hor_X5 = extend hor_X4 to dim (hor_L, xmax, ymax)
+    hor_X5 = np.repeat(hor_X4[:, np.newaxis,:], args.xmax, axis=1)
+
+    # hor_X6 = hor_X5 * pin_density, the shape is (hor_L, xmax, ymax)
+    hor_pin_density = pin_density[hor_layer_indicator]
+    hor_X6 = hor_X5 * hor_pin_density
+    # hor_edge_demand = X6[:,1:] + X6[:,:-1]
+    hor_edge_demand = hor_X6[:, :, 1:] + hor_X6[:, :, :-1] # hor_L, xmax, ymax - 1
+
+    # then we calculate the vertical pin demand
+    ver_layer_indicator = np.invert(hor_layer_indicator)
+    ver_X2 = np.zeros((edge_length[1].shape[0] + 2)) # xmax + 1
+    ver_X2[1:-1] = edge_length[1]
+    ver_X3 = np.zeros((edge_length[1].shape[0] + 1)) # xmax
+    ver_X3 = ver_X2[1:]
+    ver_X3 += ver_X2[:-1]
+    ver_layer_min_length = layer_min_length[ver_layer_indicator]
+    ver_X4 = ver_layer_min_length.reshape(-1, 1) / ver_X3.reshape(1, -1) # ver_L, xmax
+    ver_X5 = np.repeat(ver_X4[:, :, np.newaxis], args.ymax, axis=2) # ver_L, xmax, ymax
+    ver_pin_density = pin_density[ver_layer_indicator]
+    ver_X6 = ver_X5 * ver_pin_density
+    ver_edge_demand = ver_X6[:,1:] + ver_X6[:,:-1] # ver_L, xmax - 1, ymax
+    return hor_edge_demand.sum(axis = 0), ver_edge_demand.sum(axis = 0), hor_X5.mean(axis = 0), ver_X5.mean(axis = 0)
+
+
+"""
+Get the local net distribution, local net: nets that only occupy one gcell
+Return: influence of local net on each gcell
+"""
+def get_local_net(nets, args):
+    # hor_local_net_demand (xmax, ymax - 1), the number of local net layers (if one local net occupies two layers, then we + 2 in that location) in each gcell
+    local_net_density = np.zeros((args.xmax,args.ymax))
+    num_local_net = 0
+    for net in nets:
+        if len(net.pins[0]) == 1:
+            num_local_net += 1
+            local_net_density[net.pins[0][0].x,net.pins[0][0].y] += (net.pins[0][0].physical_pin_layers[1] - net.pins[0][0].physical_pin_layers[0])
+    
+    print("num_local_net: ",num_local_net)
+    
+    hor_local_net_demand = local_net_density.copy()/2 # xmax, ymax, divide by 2 because hor/ver are both counted
+    hor_local_net_demand[:,1:-1] = hor_local_net_demand[:,1:-1]/2 # mid case divide by 2, since its demand is counted by both left and right
+    hor_local_net_demand = hor_local_net_demand[:,:-1] + hor_local_net_demand[:,1:] # xmax, ymax - 1
+
+    ver_local_net_demand = local_net_density.copy()/2 # xmax, ymax, divide by 2 because hor/ver are both counted
+    ver_local_net_demand[1:-1,:] = ver_local_net_demand[1:-1,:]/2 # mid case divide by 2, since its demand is counted by both left and right
+    ver_local_net_demand = ver_local_net_demand[:-1,:] + ver_local_net_demand[1:,:] # xmax - 1, ymax
+    return hor_local_net_demand, ver_local_net_demand
 
 
 """
@@ -905,7 +1002,8 @@ Require:
 """
 @torch.no_grad()
 def add_CZ(p,p_index_full,p_index2pattern_index,hor_path,ver_path,wire_length_count, via_info, tree_index_per_candidate, 
-           candidate_pool, hor_congestion, ver_congestion, pattern_level,args):
+           candidate_pool, hor_congestion, ver_congestion, pattern_level,args,edge_length):
+    edge_length = [edge_length[0].cpu().numpy(), edge_length[1].cpu().numpy()]
     assert pattern_level == 2 or pattern_level == 3, "pattern_level should be 2 or 3"
     xmax = args.xmax
     ymax = args.ymax
@@ -948,9 +1046,9 @@ def add_CZ(p,p_index_full,p_index2pattern_index,hor_path,ver_path,wire_length_co
         if pattern_level >= 2:
             # skip z pattern if the either this_pin.x = this_parent_pin.x or this_pin.y = this_parent_pin.y
             if this_pin.x != this_parent_pin.x and this_pin.y != this_parent_pin.y:
-                result += enumerate_z(this_pin, this_parent_pin,args)
+                result += enumerate_z(this_pin, this_parent_pin,args,edge_length)
         if pattern_level >= 3:
-            result += enumerate_c(this_pin, this_parent_pin,args)
+            result += enumerate_c(this_pin, this_parent_pin,args,edge_length)
         if len(result) == 0:
             continue
         wl_list = []
@@ -1004,7 +1102,7 @@ def add_CZ(p,p_index_full,p_index2pattern_index,hor_path,ver_path,wire_length_co
         # print("before calculate cost ", torch.cuda.memory_allocated() / 1024 / 1024, "MB")
 
         # and then calculate the new overflow, pick the top-k candidates as new candidates
-        overflow_cost = torch.sum(torch.nn.CELU(alpha = 2.0)(all_ver_congestion), dim = 0) + torch.sum(torch.nn.CELU(alpha = 2.0)(all_hor_congestion),dim=0)
+        overflow_cost = torch.sum(torch.nn.Sigmoid()(all_ver_congestion * 0.5), dim = 0) + torch.sum(torch.nn.Sigmoid()(all_hor_congestion* 0.5),dim=0)
         total_cost = overflow_cost + this_wire_length_count*args.wl_coeff + this_via_count*args.via_coeff
         # pick the top-k candidates as new candidates
         num_candidate = 1
@@ -1104,7 +1202,7 @@ def add_CZ(p,p_index_full,p_index2pattern_index,hor_path,ver_path,wire_length_co
 """
 Enumerate all Z patterns for a congested 2-pin net
 """
-def enumerate_z(pin, parent_pin,args):
+def enumerate_z(pin, parent_pin,args,edge_length):
     z_step = 1
     x_width = abs(pin.x - parent_pin.x)
     y_width = abs(pin.y - parent_pin.y)
@@ -1126,7 +1224,7 @@ def enumerate_z(pin, parent_pin,args):
             assert turning_y < max(pin.y, parent_pin.y)
         else:
             turning_y = min(pin.y, parent_pin.y)
-        single_z_result = z_pattern_routing(pin, parent_pin, (turning_x, turning_y), args.xmax, args.ymax)
+        single_z_result = z_pattern_routing(pin, parent_pin, (turning_x, turning_y), args.xmax, args.ymax,edge_length)
         result.append(single_z_result)
     return result
 
@@ -1134,7 +1232,7 @@ def enumerate_z(pin, parent_pin,args):
 """
 Enumerate all C patterns for a congested 2-pin net
 """
-def enumerate_c(pin, parent_pin, args):
+def enumerate_c(pin, parent_pin, args,edge_length):
     c_step = 5
     max_c_out_ratio = args.max_c_out_ratio
     x_width = abs(pin.x - parent_pin.x)
@@ -1182,7 +1280,7 @@ def enumerate_c(pin, parent_pin, args):
                 assert turning_x < xmax
             else:
                 assert False
-            single_c_result = z_pattern_routing(pin, parent_pin, (turning_x, turning_y), xmax, ymax)
+            single_c_result = z_pattern_routing(pin, parent_pin, (turning_x, turning_y), xmax, ymax,edge_length)
             result.append(single_c_result)
     return result
         
@@ -1199,15 +1297,17 @@ Require:
         Currently, we do not use maze.txt, in our design maze.txt is only used to identify the congested nets. Congested nets will have Z/C shape candidates
         But now, we tend to design an iterative flow, which foucs on congested 2-pin net, rather than the whole net
 """
-def read_new_tree(RouteNets,cugr2_dir_path):
+def read_new_tree(RouteNets,cugr2_dir_path,args):
+    assert(args.tree_file_path is not None)
+    
     NetID2NetIdx = {} # map netID to netIdx of RouteNets
     for netIdx, net in enumerate(RouteNets):
         NetID2NetIdx[net.net_ID] = netIdx
-    CUGR2_p2 = read_tree(os.path.join(cugr2_dir_path,'CUGR2_tree.txt'))
+    CUGR2_p2 = read_tree(os.path.join(cugr2_dir_path,args.tree_file_path + '.CUGR2_NewSort.guide.CUGR2_tree.txt'))
     for net in CUGR2_p2:
         netIdx = NetID2NetIdx[net.net_ID]
         RouteNets[netIdx].pins += net.pins # pins: TreeIdx -> PinIdx
-    DGR_p2 = read_tree(os.path.join(cugr2_dir_path,'dgr_tree.txt'))
+    DGR_p2 = read_tree(os.path.join(cugr2_dir_path,args.tree_file_path + '.FirstRound.guide.dgr_tree.txt'))
     both_congested = 0 # number of nets that are congested in both CUGR2 and DGR
     for net in DGR_p2:
         netIdx = NetID2NetIdx[net.net_ID]
@@ -1263,3 +1363,10 @@ def read_tree(tree_path):
                 if parent_indx >= 0:
                     pin_list[parent_indx].add_child(pin_index)
     return result
+
+# print data read into the args
+def print_data_stat(args):
+    print("data_name: ", args.data_name)
+    print("xmax: ", args.xmax)
+    print("ymax: ", args.ymax)
+    print("num_layers: ", args.num_layer)
