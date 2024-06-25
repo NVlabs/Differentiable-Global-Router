@@ -10,8 +10,8 @@ do
     echo ""
     echo "Now Run data: $data"
     echo "Now Run CUGR2 baseline"
-    ./CUGR2.sh $data
+    ./CUGR2.sh $data $benchmark_path $cugr2 $this_path
     cd $this_path
     echo "Now run DGR"
-    ./DGR.sh $data
+    ./DGR.sh $data $benchmark_path $cugr2 $this_path
 done
