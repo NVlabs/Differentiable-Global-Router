@@ -20,7 +20,7 @@ git clone https://github.com/wadmes/cu-gr-2
 
 1. run `python data_process_CUGR2.py`, which will generate Tree Data information of every benchmark(stored in the run path of CUGR2) for our model as a input.
 
-2. run `python main.py`, which reads input and generates output paths for CUGR2. You may need to update hyper-parameters to change data path. See `ours.sh` as an example.
+2. run `python main_stochastic.py`, which reads input and generates output paths for CUGR2. You may need to update hyper-parameters to change data path. See `DGR.sh` as an example.
 
 3. in CUGR2, run the binary file with the generated output as the input argument for `--dgr <path>`.  See `ours.sh` as an example. The CUGR2 will not run its own DP-based parttern routing, rather, it will use DGR results as a helper to decide routing pattern.
 
