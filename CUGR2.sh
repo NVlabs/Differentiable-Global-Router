@@ -20,9 +20,9 @@ data="${1:-ispd18_test1}"
 benchmark_path=$2
 cugr2=$3
 this_path=$4
-mkdir $cugr2/GR_log
-mkdir $cugr2/DR_log
-mkdir $cugr2/DR_result
+mkdir -p $cugr2/GR_log
+mkdir -p $cugr2/DR_log
+mkdir -p $cugr2/DR_result
 echo "Processing CUGR2 First Round... data: $data"
 cd $cugr2/run/
 ./route -lef $benchmark_path/$data/$data.input.lef -def $benchmark_path/$data/$data.input.def -output $benchmark_path/$data/$data.output2 -sort 0 > $cugr2/GR_log/$data\_CUGR2.log
