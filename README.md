@@ -3,7 +3,6 @@
 + torch 
 + torch_scatter 
 + numpy
-+ tracemalloc
 
 
 # pre-requisite
@@ -18,7 +17,7 @@ git clone https://github.com/wadmes/cu-gr-2
 # How to integrate DGR into CUGR2?
 0. run revised CUGR2 to obatin some required data, e.g. corresponding FLUTE tree, and layout information. (see `CUGR2.sh` as an example to run CUGR2)
 
-1. run `python data_process_CUGR2.py`, which will generate Tree Data information of every benchmark(stored in the run path of CUGR2) for our model as a input.
+1. run `python data_process_CUGR2.py $cugr2_dir $benchmark_path`, which will generate Tree Data information of every benchmark(stored in the run path of CUGR2) for our model as a input.
 
 2. run `python main_stochastic.py`, which reads input and generates output paths for CUGR2. You may need to update hyper-parameters to change data path. See `DGR.sh` as an example.
 
